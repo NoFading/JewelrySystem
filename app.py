@@ -54,7 +54,7 @@ def save_data(data):
         except:
             pass
         put_data = {
-            "message": "🔄 4.0 零售业绩版账本自动同步",
+            "message": "🔄 5.0 支持退货核销账本同步",
             "content": base64.b64encode(content_str.encode('utf-8')).decode('utf-8')
         }
         if sha: put_data["sha"] = sha
@@ -77,13 +77,13 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>丰高珠宝管理系统 4.0 零售业绩版</title>
+    <title>丰高珠宝管理系统 5.0 退货核销版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; -webkit-text-size-adjust: 100%; }
         .card { background: white; padding: 12px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 10px; box-sizing: border-box; }
         
-        /* 🔥 今日出库简报：重点突出销售额 */
+        /* 今日出库简报 */
         .sales-dashboard { background: linear-gradient(135deg, #ff9500, #ff3b30); color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(255,59,48,0.2); }
         .sales-dashboard h3 { margin: 0; font-size: 13px; opacity: 0.9; font-weight: normal; letter-spacing: 1px; }
         .sales-dashboard .count { font-size: 30px; font-weight: bold; margin: 6px 0; font-family: Arial, sans-serif; }
@@ -98,12 +98,19 @@ HTML_TEMPLATE = """
         h2 { margin-top: 0; margin-bottom: 8px; color: #111; font-size: 14px; border-left: 4px solid #ff3b30; padding-left: 6px; }
         .btn { background: #ff3b30; color: white; border: none; padding: 11px; border-radius: 8px; font-size: 14px; width: 100%; cursor: pointer; font-weight: bold; }
         .btn-green { background: #34c759; }
+        .btn-blue { background: #007aff; }
         .btn-scan { background: #5856d6; margin-bottom: 8px; }
         
+        /* 内部小切换，用于区分销售和退货 */
+        .action-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
+        .action-radio { flex: 1; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; background: #fafafa; }
+        .action-radio.selected-sale { background: #fff5f5; border-color: #ff3b30; color: #ff3b30; }
+        .action-radio.selected-return { background: #f0f7ff; border-color: #007aff; color: #007aff; }
+
         .input-title { font-size: 12px; color: #666; margin-top: 6px; font-weight: bold; }
         input[type="file"], input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin: 4px 0 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
         
-        /* 看板强制文字单行不换行，允许手势横滑 */
+        /* 看板手势横滑 */
         .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #eee; border-radius: 6px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
         th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
@@ -116,12 +123,14 @@ HTML_TEMPLATE = """
 </head>
 <body>
 
+    <!-- ⚡ 今日业绩速报 (支持退货负向扣减) -->
     <div class="sales-dashboard" onclick="toggleSection('todayDetailBox')">
         <h3>💰 今日累计销售额</h3>
         <div class="count" id="todayAmount">¥ 0.00</div>
         <div id="todayCount" style="font-size: 12px; opacity: 0.9;">今天已成功卖出: 0 件货品</div>
     </div>
 
+    <!-- 🛍️ 今日销售明细 -->
     <div class="card" id="todayDetailBox">
         <h2>🛍️ 今日卖出商品明细 (横滑可看售价)</h2>
         <div class="table-container">
@@ -136,26 +145,38 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
+    <!-- 🔄 模块一：【前台收银与日常操作中心】 -->
     <div class="card">
         <div class="tab-header">
             <div class="tab-btn active" id="tabOp1" onclick="switchTab('Op', 1)">🛒 柜台商品销售 (收银)</div>
             <div class="tab-btn" id="tabOp2" onclick="switchTab('Op', 2)">📦 批量货品入库 (Excel)</div>
         </div>
         
+        <!-- 子页1：前台销售 & 退货 -->
         <div class="tab-content active" id="contentOp1">
-            <button class="btn btn-scan" id="scanBtn" onclick="toggleScanner()">📷 开启摄像头扫码卖货</button>
+            <button class="btn btn-scan" id="scanBtn" onclick="toggleScanner()">📷 开启摄像头扫码</button>
             <div id="reader"></div>
             
-            <div class="input-title">第一步：输入或扫描货品条码</div>
+            <!-- 💡 优化项：销售与退货模式切换 -->
+            <div class="input-title">请选择当前柜台操作：</div>
+            <div class="action-toggle">
+                <div class="action-radio selected-sale" id="modeSale" onclick="setMode('sale')">🛍️ 正常销售记账</div>
+                <div class="action-radio" id="modeReturn" onclick="setMode('return')">🔄 办理退货核销</div>
+            </div>
+
+            <div class="input-title" id="barcodeTitle">第一步：输入或扫描货品条码</div>
             <input type="text" id="barcodeInput" placeholder="请扫码或在此手动输入条码/货号">
             
-            <div class="input-title" style="color: #ff3b30;">第二步：实收客户金额 (实际售价 ¥)</div>
-            <input type="number" id="actualPriceInput" step="0.01" placeholder="请输入跟客户谈拢的最终实收总价">
+            <div id="priceInputArea">
+                <div class="input-title" style="color: #ff3b30;">第二步：实收客户金额 (实际售价 ¥)</div>
+                <input type="number" id="actualPriceInput" step="0.01" placeholder="请输入跟客户谈拢的最终实收总价">
+            </div>
             
-            <button class="btn" onclick="submitCheckout()">💰 确认销售并记账</button>
-            <div class="tips">提示：点击上方按钮后，货品将自动转入已售账本，并实时累加到今日总销售额中。</div>
+            <button class="btn" id="submitOpBtn" onclick="executeOperation()">💰 确认销售并记账</button>
+            <div class="tips" id="modeTips">提示：点击上方按钮后，货品将自动转入已售账本，并实时累加到今日总销售额中。</div>
         </div>
         
+        <!-- 子页2：后台入库 -->
         <div class="tab-content" id="contentOp2">
             <input type="file" id="excelFile" accept=".xlsx, .xls">
             <button class="btn btn-green" onclick="uploadExcel()">选择并解析新货 Excel</button>
@@ -166,6 +187,7 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
+    <!-- 安全入库预览 -->
     <div class="preview-zone" id="previewZone">
         <h2 style="border-left-color: #ff9500; font-size:13px;">⚠️ 待入库新货安全预览</h2>
         <div class="table-container" style="max-height: 150px; background: white;">
@@ -182,12 +204,14 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
+    <!-- 💎 模块二：【后台库存看板中心】 -->
     <div class="card">
         <div class="tab-header">
             <div class="tab-btn active" id="tabView1" onclick="switchTab('View', 1)">🟢 店内当前在售存货</div>
             <div class="tab-btn" id="tabView2" onclick="switchTab('View', 2)">📜 历史已售出累计账本</div>
         </div>
         
+        <!-- 存货 -->
         <div class="tab-content active" id="contentView1">
             <div class="table-container">
                 <table>
@@ -199,6 +223,7 @@ HTML_TEMPLATE = """
             </div>
         </div>
         
+        <!-- 历史已售 -->
         <div class="tab-content" id="contentView2">
             <div class="table-container">
                 <table>
@@ -216,6 +241,7 @@ HTML_TEMPLATE = """
     <script>
         let html5QrcodeScanner = null;
         let tempParsedData = null;
+        let currentMode = 'sale'; // 'sale' 或 'return'
 
         window.onload = loadAllData;
 
@@ -231,11 +257,37 @@ HTML_TEMPLATE = """
             el.style.display = (el.style.display === 'none') ? 'block' : 'none';
         }
 
+        // 💡 优化项：动态切换销售和退货的前端视觉
+        function setMode(mode) {
+            currentMode = mode;
+            const modeSale = document.getElementById('modeSale');
+            const modeReturn = document.getElementById('modeReturn');
+            const priceInputArea = document.getElementById('priceInputArea');
+            const submitOpBtn = document.getElementById('submitOpBtn');
+            const modeTips = document.getElementById('modeTips');
+
+            if (mode === 'sale') {
+                modeSale.classList.add('selected-sale');
+                modeReturn.classList.remove('selected-return');
+                priceInputArea.style.display = 'block';
+                submitOpBtn.innerText = '💰 确认销售并记账';
+                submitOpBtn.className = 'btn';
+                modeTips.innerText = '提示：点击上方按钮后，货品将自动转入已售账本，并实时累加到今日总销售额中。';
+            } else {
+                modeSale.remove('selected-sale');
+                modeSale.classList.remove('selected-sale');
+                modeReturn.classList.add('selected-return');
+                priceInputArea.style.display = 'none';
+                submitOpBtn.innerText = '🔄 确认退货并恢复库存';
+                submitOpBtn.className = 'btn btn-blue';
+                modeTips.innerText = '提示：办理退货后，该货品将从已售账本中剔除、重新回到在售库存，且今日大盘销售额会自动扣减这笔退款。';
+            }
+        }
+
         function loadAllData() {
             fetch('/api/inventory')
                 .then(res => res.json())
                 .then(res => {
-                    // 1. 渲染当前在售
                     const tbody = document.getElementById('inventoryBody');
                     tbody.innerHTML = '';
                     if(!res.active || res.active.length === 0) {
@@ -246,7 +298,6 @@ HTML_TEMPLATE = """
                         });
                     }
 
-                    // 2. 渲染历史已售 (包含最终售价)
                     const sbody = document.getElementById('soldBody');
                     sbody.innerHTML = '';
                     if(!res.sold || res.sold.length === 0) {
@@ -257,11 +308,9 @@ HTML_TEMPLATE = """
                         });
                     }
 
-                    // 3. 今日大盘 (高亮销售总金额)
                     document.getElementById('todayAmount').innerText = '¥ ' + res.today_money.toFixed(2);
                     document.getElementById('todayCount').innerText = '今天已成功卖出: ' + res.today_count + ' 件货品';
 
-                    // 4. 今日销售明细
                     const tbodyToday = document.getElementById('todaySalesBody');
                     tbodyToday.innerHTML = '';
                     if(!res.today_list || res.today_list.length === 0) {
@@ -274,7 +323,6 @@ HTML_TEMPLATE = """
                 });
         }
 
-        // 💡 升级 1：全新 Excel 解析规范
         function uploadExcel() {
             const fileInput = document.getElementById('excelFile');
             if (!fileInput.files[0]) { alert('请选择 Excel 文件！'); return; }
@@ -340,35 +388,54 @@ HTML_TEMPLATE = """
             if (html5QrcodeScanner) {
                 html5QrcodeScanner.stop().then(() => {
                     document.getElementById('reader').style.display = 'none';
-                    document.getElementById('scanBtn').innerText = '📷 开启摄像头扫码卖货';
+                    document.getElementById('scanBtn').innerText = '📷 开启摄像头扫码';
                 }).catch(() => {
                     document.getElementById('reader').style.display = 'none';
-                    document.getElementById('scanBtn').innerText = '📷 开启摄像头扫码卖货';
+                    document.getElementById('scanBtn').innerText = '📷 开启摄像头扫码';
                 });
             }
         }
 
-        function submitCheckout() {
+        // 💡 核心操作分流控制
+        function executeOperation() {
             const code = document.getElementById('barcodeInput').value.trim();
-            const actualPrice = document.getElementById('actualPriceInput').value.trim();
-            
-            if (!code) { alert('请输入或扫描货品条码！'); return; }
-            if (!actualPrice) { alert('请输入实收客户的最终金额（售价）！'); return; }
-            
-            fetch('/api/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: code, sold_price: actualPrice })
-            })
-            .then(res => res.json())
-            .then(res => {
-                alert(res.msg);
-                if (res.success) {
-                    document.getElementById('barcodeInput').value = '';
-                    document.getElementById('actualPriceInput').value = '';
-                    loadAllData();
-                }
-            });
+            if (!code) { alert('请先输入或扫描货品条码！'); return; }
+
+            if (currentMode === 'sale') {
+                const actualPrice = document.getElementById('actualPriceInput').value.trim();
+                if (!actualPrice) { alert('请输入实收客户的最终金额（售价）！'); return; }
+                
+                fetch('/api/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code, sold_price: actualPrice })
+                })
+                .then(res => res.json())
+                .then(res => {
+                    alert(res.msg);
+                    if (res.success) {
+                        document.getElementById('barcodeInput').value = '';
+                        document.getElementById('actualPriceInput').value = '';
+                        loadAllData();
+                    }
+                });
+            } else {
+                // 💡 退货处理
+                if (!confirm(`确认要为条码 [${code}] 办理退货核销吗？该货品将重新上架为在售库存。`)) return;
+                fetch('/api/return_item', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                })
+                .then(res => res.json())
+                .then(res => {
+                    alert(res.msg);
+                    if (res.success) {
+                        document.getElementById('barcodeInput').value = '';
+                        loadAllData();
+                    }
+                });
+            }
         }
     </script>
 </body>
@@ -393,7 +460,6 @@ def get_inventory():
             if item.get('sold_date') == today_str:
                 today_sales_list.append(item)
                 try: 
-                    # 💡 升级 4：今日出库简报核心改为计算成交额
                     today_money += float(item.get('sold_price', 0) or 0)
                 except: 
                     pass
@@ -416,7 +482,6 @@ def parse_preview():
         
         code_col, name_col, cate_col, weight_col, tag_col, wage_col = None, None, None, None, None, None
         
-        # 💡 升级 1：完美的模糊列名自适应识别逻辑
         for col in df.columns:
             low_col = col.lower()
             if any(k in low_col for k in ['条码', '标签', '编码', '码', 'code']): code_col = col
@@ -493,7 +558,6 @@ def checkout():
             if item['status'] == '已售出':
                 return jsonify({'success': False, 'msg': f'⚠️ 提示：条码 {code} 早已卖出，售价为 ¥{item.get("sold_price","0")}'})
             
-            # 💡 升级 2、5：核销时，锁定并记录前台输入的实际成交「售价」和售出日期
             item['status'] = '已售出'
             item['sold_date'] = today_str
             try:
@@ -504,6 +568,29 @@ def checkout():
             save_data(current_data)
             return jsonify({'success': True, 'msg': f'🛍 货品 {code} 成功售出！实收金额 ¥{item["sold_price"]} 已记入今日大盘。'})
     return jsonify({'success': False, 'msg': f'❌ 未能在店内库存中找到条码为 [{code}] 的货品。'})
+
+# 💡 升级核心：新增退货接口逻辑
+@app.route('/api/return_item', methods=['POST'])
+def return_item():
+    req = request.get_json() or {}
+    code = str(req.get('code', '')).strip()
+    
+    current_data = load_data()
+    for item in current_data:
+        if str(item['code']).strip() == code:
+            if item['status'] == '在售':
+                return jsonify({'success': False, 'msg': f'⚠️ 提示：该货品 [ {code} ] 当前本来就在在售库存中，无需退货。'})
+            
+            # 还原状态，抹除历史售价与售出日期
+            old_price = item.get('sold_price', '0')
+            item['status'] = '在售'
+            if 'sold_date' in item: del item['sold_date']
+            if 'sold_price' in item: del item['sold_price']
+            
+            save_data(current_data)
+            return jsonify({'success': True, 'msg': f'🔄 退货核销成功！货品 {code} 已重新上架。大盘已扣减该笔金额 ¥{old_price}。'})
+            
+    return jsonify({'success': False, 'msg': f'❌ 未能在系统大账本中找到条码为 [{code}] 的任何货品记录。'})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
