@@ -85,7 +85,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>峰高珠宝管理系统 7.4 盘点大数据优化版</title>
+    <title>峰高珠宝管理系统 7.5 全能搜索版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; }
@@ -126,8 +126,11 @@ HTML_TEMPLATE = """
 
         input[type="file"], input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin: 4px 0 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
         
-        /* 盘点搜索专用框微调 */
-        .search-box { background: #fff; border: 2px solid #5856d6 !important; margin-bottom: 8px !important; font-weight: bold; }
+        /* 智能搜索框高亮样式 */
+        .search-box { background: #fff; border: 2px solid #ff3b30 !important; margin-bottom: 8px !important; font-weight: bold; }
+        .search-box.green-border { border-color: #34c759 !important; }
+        .search-box.orange-border { border-color: #ff9500 !important; }
+        .search-box.purple-border { border-color: #5856d6 !important; }
 
         .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #eee; border-radius: 6px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
@@ -226,7 +229,7 @@ HTML_TEMPLATE = """
                 <input type="text" id="stocktakeBarcodeInput" placeholder="若摄像头不方便，可在此手输条码" onkeydown="if(event.keyCode==13)manualStocktakeCheck()">
 
                 <h2 style="border-left-color: #5856d6; color:#5856d6; margin-top:15px; margin-bottom: 5px;">🔍 寻找待盘货品</h2>
-                <input type="text" id="stocktakeSearchInput" class="search-box" placeholder="⚡ 输入品类或条码实时过滤名单（如：手镯）" oninput="stCurrentPage=1; renderStocktakeMissingList();">
+                <input type="text" id="stocktakeSearchInput" class="search-box purple-border" placeholder="⚡ 输入品类、货名或条码实时过滤..." oninput="stCurrentPage=1; renderStocktakeMissingList();">
 
                 <div id="stocktakeListWrapper">
                     <div class="table-container" style="background: #fff;">
@@ -274,6 +277,7 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="tab-content active" id="contentView1">
+            <input type="text" id="inventorySearchInput" class="search-box green-border" placeholder="⚡ 极速找存货：输入条码、货名或品类实时筛选..." oninput="pagerConfig.inventory.currentPage=1; renderPagedTable('inventory');">
             <div class="table-container">
                 <table>
                     <thead>
@@ -286,6 +290,7 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="tab-content" id="contentView2">
+            <input type="text" id="soldSearchInput" class="search-box orange-border" placeholder="⚡ 闪电查老账：输入条码、货名、日期或品类筛选..." oninput="pagerConfig.sold.currentPage=1; renderPagedTable('sold');">
             <div class="table-container">
                 <table>
                     <thead>
@@ -337,15 +342,15 @@ HTML_TEMPLATE = """
         let backendSoldData = [];
         let backendTodayData = [];
         
-        // 盘点大数据核心控制变量
         let localStocktakeItems = [];
-        let isStCollapsed = true; // 默认对盘点列表实施保护性折叠
+        let isStCollapsed = true; 
         let stCurrentPage = 1;
-        let stPageSize = 8; // 每页显示精简的 8 条数据，防止手机卡顿
+        let stPageSize = 8; 
 
+        // 为三个数据流初始化分页配置（默认加载5行，清爽无感）
         let pagerConfig = {
-            inventory: { currentPage: 1, pageSize: 10 },
-            sold: { currentPage: 1, pageSize: 10 },
+            inventory: { currentPage: 1, pageSize: 5 },
+            sold: { currentPage: 1, pageSize: 5 },
             today: { currentPage: 1, pageSize: 10 }
         };
 
@@ -405,26 +410,45 @@ HTML_TEMPLATE = """
                 });
         }
 
+        // 💡 核心升级功能：全自动化本地虚拟多条件极速搜索筛选与分页
         function renderPagedTable(key) {
             const config = pagerConfig[key];
-            let data = []; let tbody = null; let pagerDiv = null;
-            if (key === 'inventory') { data = backendActiveData; tbody = document.getElementById('inventoryBody'); pagerDiv = document.getElementById('pagerInventory'); }
-            else if (key === 'sold') { data = backendSoldData; tbody = document.getElementById('soldBody'); pagerDiv = document.getElementById('pagerSold'); }
-            else if (key === 'today') { data = backendTodayData; tbody = document.getElementById('todaySalesBody'); pagerDiv = document.getElementById('pagerToday'); }
+            let rawData = []; let tbody = null; let pagerDiv = null; let searchId = "";
+            
+            if (key === 'inventory') { rawData = backendActiveData; tbody = document.getElementById('inventoryBody'); pagerDiv = document.getElementById('pagerInventory'); searchId = "inventorySearchInput"; }
+            else if (key === 'sold') { rawData = backendSoldData; tbody = document.getElementById('soldBody'); pagerDiv = document.getElementById('pagerSold'); searchId = "soldSearchInput"; }
+            else if (key === 'today') { rawData = backendTodayData; tbody = document.getElementById('todaySalesBody'); pagerDiv = document.getElementById('pagerToday'); }
 
             tbody.innerHTML = '';
-            if(data.length === 0) {
+
+            // 获取相应的查找关键词进行多属性动态模糊过滤
+            let filteredData = rawData;
+            if(searchId) {
+                const query = document.getElementById(searchId).value.trim().toLowerCase();
+                if(query) {
+                    filteredData = rawData.filter(item => 
+                        String(item.code).toLowerCase().includes(query) || 
+                        String(item.name).toLowerCase().includes(query) || 
+                        String(item.category).toLowerCase().includes(query) ||
+                        (item.sold_date && String(item.sold_date).toLowerCase().includes(query))
+                    );
+                }
+            }
+
+            if(filteredData.length === 0) {
                 const cols = key === 'sold' ? 6 : 5;
-                tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center; color:#999; padding:15px;">暂无对应账目记录</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center; color:#999; padding:15px;">🔍 未找到相关匹配的货品记录</td></tr>`;
                 pagerDiv.innerHTML = ''; return;
             }
 
-            let totalItems = data.length;
+            let totalItems = filteredData.length;
             let totalPages = Math.ceil(totalItems / config.pageSize);
             if (config.currentPage > totalPages) config.currentPage = totalPages;
+            if (config.currentPage < 1) config.currentPage = 1;
+
             let startIndex = (config.currentPage - 1) * config.pageSize;
             let endIndex = Math.min(startIndex + config.pageSize, totalItems);
-            let pageData = data.slice(startIndex, endIndex);
+            let pageData = filteredData.slice(startIndex, endIndex);
 
             pageData.forEach(item => {
                 const tagHtml = getTypeTagHtml(item.category || '其他');
@@ -439,16 +463,17 @@ HTML_TEMPLATE = """
 
             pagerDiv.innerHTML = `
                 <div>
-                    显示 ${startIndex + 1}-${endIndex} / 共 ${totalItems} 条 
+                    共 ${totalItems} 条 | 每页:
                     <select class="page-size-select" onchange="changePageSize('${key}', this.value)">
-                        <option value="10" ${config.pageSize==10?'selected':''}>10行/页</option>
-                        <option value="20" ${config.pageSize==20?'selected':''}>20行/页</option>
-                        <option value="50" ${config.pageSize==50?'selected':''}>50行/页</option>
+                        <option value="5" ${config.pageSize==5?'selected':''}>5行</option>
+                        <option value="10" ${config.pageSize==10?'selected':''}>10行</option>
+                        <option value="20" ${config.pageSize==20?'selected':''}>20行</option>
+                        <option value="50" ${config.pageSize==50?'selected':''}>50行</option>
                     </select>
                 </div>
                 <div>
                     <button class="page-btn" ${config.currentPage==1?'disabled':''} onclick="goToPage('${key}', ${config.currentPage - 1})">◀</button>
-                    <span style="margin: 0 4px; font-weight:bold;">${config.currentPage} / ${totalPages}</span>
+                    <span style="margin: 0 4px; font-weight:bold;">${config.currentPage}/${totalPages}</span>
                     <button class="page-btn" ${config.currentPage==totalPages?'disabled':''} onclick="goToPage('${key}', ${config.currentPage + 1})">▶</button>
                 </div>
             `;
@@ -463,8 +488,7 @@ HTML_TEMPLATE = """
                 .then(res => {
                     if(!res.active || res.active.length === 0) { alert("当前店内在售库存为空，无需盘点！"); return; }
                     localStocktakeItems = res.active.map(item => { return { ...item, scanned: false }; });
-                    isStCollapsed = true; 
-                    stCurrentPage = 1;
+                    isStCollapsed = true; stCurrentPage = 1;
                     document.getElementById('stocktakeSearchInput').value = '';
                     document.getElementById('stocktakeSetup').style.display = 'none';
                     document.getElementById('stocktakeActiveZone').style.display = 'block';
@@ -479,7 +503,6 @@ HTML_TEMPLATE = """
             renderStocktakeMissingList();
         }
 
-        // 💡 核心深度优化：渲染盘点“待寻找名单”
         function renderStocktakeMissingList() {
             const missingBody = document.getElementById('stocktakeMissingBody');
             const pagerDiv = document.getElementById('stocktakeLocalPager');
@@ -494,7 +517,6 @@ HTML_TEMPLATE = """
                 pagerDiv.innerHTML = ''; document.getElementById('toggleShowAllBtn').style.display = 'none'; return;
             }
 
-            // 执行本地模糊搜索过滤
             const query = document.getElementById('stocktakeSearchInput').value.trim().toLowerCase();
             let filteredItems = totalMissingItems;
             if(query) {
@@ -514,20 +536,16 @@ HTML_TEMPLATE = """
 
             let displayItems = [];
             if (isStCollapsed) {
-                // 情形 A：精简视图下只截取前 5 条展示，隐藏分页器
                 displayItems = filteredItems.slice(0, 5);
                 pagerDiv.innerHTML = `<div style="color:#666; font-size:11px; text-align:center; width:100%;">⚡ 为了在手机上极速扫码，当前隐藏了其余 ${filteredItems.length - displayItems.length} 条待找项</div>`;
             } else {
-                // 情形 B：完整大视图下，通过虚拟分页渲染，彻底解决卡顿
                 let totalItems = filteredItems.length;
                 let totalPages = Math.ceil(totalItems / stPageSize);
                 if (stCurrentPage > totalPages) stCurrentPage = totalPages;
                 if (stCurrentPage < 1) stCurrentPage = 1;
-
                 let start = (stCurrentPage - 1) * stPageSize;
                 let end = Math.min(start + stPageSize, totalItems);
                 displayItems = filteredItems.slice(start, end);
-
                 pagerDiv.innerHTML = `
                     <div style="font-size:11px; color:#666;">筛选后共 ${totalItems} 条</div>
                     <div>
@@ -537,8 +555,6 @@ HTML_TEMPLATE = """
                     </div>
                 `;
             }
-
-            // 正式渲染这一页的几条数据，DOM 负担极小
             displayItems.forEach(item => {
                 missingBody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${getTypeTagHtml(item.category)}</td><td>${item.weight}g</td></tr>`;
             });
@@ -578,7 +594,7 @@ HTML_TEMPLATE = """
             fetch('/api/stocktake/submit', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report)
             })
-            .then(res => res.json()).then(res => { alert(res.msg); cancelStocktakeReset(); });
+            .then(res => res.json()).then(res => { alert(res.msg); cancelStocktakeReset(); loadAllData(); });
         }
 
         function cancelStocktakeReset() {
