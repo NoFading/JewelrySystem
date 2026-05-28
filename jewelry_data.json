@@ -16,5 +16,19 @@
         "tag_price": "1000.0",
         "wage": "",
         "status": "在售"
+    },
+    {
+        "code": "wyy01",
+        "name": "足金吊坠",
+        "category": "吊坠",
+        "weight": "1.6",
+        "status": "在售"
+    },
+    {
+        "code": "wyy02",
+        "name": "珍珠项链",
+        "category": "项链",
+        "weight": "0",
+        "status": "在售"
     }
 ]
