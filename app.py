@@ -11,10 +11,10 @@ app = Flask(__name__)
 DATA_FILE = 'jewelry_data.json'
 STOCKTAKE_FILE = 'stocktake_records.json'
 
-# ================= 🔐 安全登录配置区 =================
+# ================= 🔐 安全登录配置区 (已按要求固化) =================
 USER_ACCOUNT = "fenggao"
 USER_PASSWORD = "123456" 
-# ===================================================
+# ===================================================================
 
 GH_TOKEN = os.environ.get('GH_TOKEN')
 GH_REPO = os.environ.get('GH_REPO')
@@ -87,23 +87,38 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>峰高珠宝管理系统 7.1 精配对账版</title>
+    <title>峰高珠宝管理系统 7.2 视觉精调版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; }
-        .card { background: white; padding: 12px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 10px; box-sizing: border-box; }
+        .card { background: white; padding: 12px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 12px; box-sizing: border-box; }
         
-        .sales-dashboard { background: linear-gradient(135deg, #ff9500, #ff3b30); color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(255,59,48,0.2); }
+        .sales-dashboard { background: linear-gradient(135deg, #ff9500, #ff3b30); color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(255,59,48,0.2); }
         .sales-dashboard h3 { margin: 0; font-size: 13px; opacity: 0.9; font-weight: normal; }
         .sales-dashboard .count { font-size: 30px; font-weight: bold; margin: 6px 0; font-family: Arial, sans-serif; }
         
-        .tab-header { display: flex; background: #eee; border-radius: 8px; padding: 2px; margin-bottom: 10px; }
-        .tab-btn { flex: 1; text-align: center; padding: 9px 0; font-size: 13px; cursor: pointer; border-radius: 6px; font-weight: bold; color: #666; }
-        .tab-btn.active { background: white; color: #ff3b30; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        /* 💡 升级：第一组 Tab 基础容器与独立变色设计 (前台操作区) */
+        .tab-header-op { display: flex; background: #eef0f3; border-radius: 8px; padding: 2px; margin-bottom: 12px; gap: 2px; }
+        .tab-btn-op { flex: 1; text-align: center; padding: 10px 0; font-size: 12px; cursor: pointer; border-radius: 6px; font-weight: bold; color: #555; transition: all 0.2s; }
+        
+        /* 激活时的雅致色彩区分 */
+        #tabOp1.active { background: #fff1f0; color: #e03131; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #ff3b30; }
+        #tabOp2.active { background: #e6f7ff; color: #096dd9; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #007aff; }
+        #tabOp3.active { background: #f9f0ff; color: #531dab; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #5856d6; }
+        
+        /* 💡 升级：第二组 Tab 基础容器与独立变色设计 (后台看板区) */
+        .tab-header-view { display: flex; background: #eef0f3; border-radius: 8px; padding: 2px; margin-bottom: 12px; gap: 2px; }
+        .tab-btn-view { flex: 1; text-align: center; padding: 10px 0; font-size: 12px; cursor: pointer; border-radius: 6px; font-weight: bold; color: #555; transition: all 0.2s; }
+        
+        /* 激活时的雅致色彩区分 */
+        #tabView1.active { background: #f6ffed; color: #389e0d; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #34c759; }
+        #tabView2.active { background: #fff7e6; color: #d46b08; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #ff9500; }
+        #tabView3.active { background: #f0f5ff; color: #1d39c4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #2f54eb; }
+
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
-        h2 { margin-top: 0; margin-bottom: 8px; color: #111; font-size: 14px; border-left: 4px solid #ff3b30; padding-left: 6px; }
+        h2 { margin-top: 0; margin-bottom: 10px; color: #111; font-size: 14px; border-left: 4px solid #ff3b30; padding-left: 6px; }
         .btn { background: #ff3b30; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 13px; width: 100%; cursor: pointer; font-weight: bold; }
         .btn-green { background: #34c759; }
         .btn-blue { background: #007aff; }
@@ -122,16 +137,13 @@ HTML_TEMPLATE = """
         th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
         th { background: #f9f9f9; font-weight: 600; color: #666; }
         
-        /* 💡 新增：雅致低饱和度品类标签样式 */
         .type-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         
-        /* 💡 新增：分页控制区样式 */
         .pagination-container { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 4px; font-size: 12px; color: #555; }
         .page-btn { background: #eef0f3; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 4px; }
         .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .page-size-select { padding: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px; }
 
-        /* 💡 新增：盘亏详情雅致弹窗（Modal） */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; }
         .modal-content { background: white; border-radius: 14px; width: 100%; max-width: 500px; padding: 15px; box-sizing: border-box; box-shadow: 0 4px 15px rgba(0,0,0,0.15); animation: fadeIn 0.2s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
@@ -157,7 +169,7 @@ HTML_TEMPLATE = """
             <table>
                 <thead>
                     <tr style="background: #fff5f5;">
-                        <th>条码/标签</th><th>货品名称</th><th>品类</th><th>金重(g)</th><th>标签标价</th><th>工费</th><th>实际成交售价</th>
+                        <th>条码/标签</th><th>货品名称</th><th>品类</th><th>金重(g)</th><th>实际成交售价</th>
                     </tr>
                 </thead>
                 <tbody id="todaySalesBody"></tbody>
@@ -167,10 +179,10 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="card">
-        <div class="tab-header">
-            <div class="tab-btn active" id="tabOp1" onclick="switchTab('Op', 1)">🛒 柜台商品销售 (收银)</div>
-            <div class="tab-btn" id="tabOp2" onclick="switchTab('Op', 2)">📦 批量货品入库 (Excel)</div>
-            <div class="tab-btn" id="tabOp3" onclick="switchTab('Op', 3)" style="background: #f5f0ff; color:#5856d6;">🔍 手机极速盘点</div>
+        <div class="tab-header-op">
+            <div class="tab-btn-op active" id="tabOp1" onclick="switchTab('Op', 1)">🛒 柜台商品销售</div>
+            <div class="tab-btn-op" id="tabOp2" onclick="switchTab('Op', 2)">📦 批量货品入库</div>
+            <div class="tab-btn-op" id="tabOp3" onclick="switchTab('Op', 3)">🔍 手机极速盘点</div>
         </div>
         
         <div class="tab-content active" id="contentOp1">
@@ -249,10 +261,10 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="card">
-        <div class="tab-header">
-            <div class="tab-btn active" id="tabView1" onclick="switchTab('View', 1)">🟢 店内当前在售存货</div>
-            <div class="tab-btn" id="tabView2" onclick="switchTab('View', 2)">📜 历史已售出累计账本</div>
-            <div class="tab-btn" id="tabView3" onclick="switchTab('View', 3)">📋 历史盘点报告</div>
+        <div class="tab-header-view">
+            <div class="tab-btn-view active" id="tabView1" onclick="switchTab('View', 1)">🟢 店内当前在售存货</div>
+            <div class="tab-btn-view" id="tabView2" onclick="switchTab('View', 2)">📜 历史已售出累计账本</div>
+            <div class="tab-btn-view" id="tabView3" onclick="switchTab('View', 3)">📋 历史盘点报告</div>
         </div>
         
         <div class="tab-content active" id="contentView1">
@@ -315,13 +327,11 @@ HTML_TEMPLATE = """
         let tempParsedData = null;
         let currentMode = 'sale';
         
-        // 全局核心缓存数据
         let backendActiveData = [];
         let backendSoldData = [];
         let backendTodayData = [];
         let localStocktakeItems = [];
 
-        // 💡 分页配置状态器
         let pagerConfig = {
             inventory: { currentPage: 1, pageSize: 10 },
             sold: { currentPage: 1, pageSize: 10 },
@@ -330,23 +340,24 @@ HTML_TEMPLATE = """
 
         window.onload = loadAllData;
 
-        // 💡 莫兰迪低饱和度高雅色彩映射函数
         function getTypeTagHtml(typeStr) {
             const val = String(typeStr || '').trim();
-            let bg = '#f1f3f5', color = '#495057'; // 默认低调灰
+            let bg = '#f1f3f5', color = '#495057';
             
-            if (val.includes('足金') || val.includes('黄金')) { bg = '#fef6e0'; color = '#b27b00'; } // 柔和麦芽黄
-            else if (val.includes('K金') || val.includes('18K')) { bg = '#faecea'; color = '#be5a4d'; } // 优雅淡藕荷
-            else if (val.includes('钻石') || val.includes('铂金')) { bg = '#eaf2f8'; color = '#2e6da4'; } // 莫兰迪冰蓝
-            else if (val.includes('翡翠') || val.includes('玉')) { bg = '#eafaf1'; color = '#278946'; } // 舒缓浅葱绿
+            if (val.includes('足金') || val.includes('黄金')) { bg = '#fef6e0'; color = '#b27b00'; }
+            else if (val.includes('K金') || val.includes('18K')) { bg = '#faecea'; color = '#be5a4d'; }
+            else if (val.includes('钻石') || val.includes('铂金')) { bg = '#eaf2f8'; color = '#2e6da4'; }
+            else if (val.includes('翡翠') || val.includes('玉')) { bg = '#eafaf1'; color = '#278946'; }
             else if (val.includes('银')) { bg = '#f3f4f7'; color = '#6c757d'; }
             
             return `<span class="type-tag" style="background: ${bg}; color: ${color};">${val}</span>`;
         }
 
         function switchTab(moduleName, index) {
-            document.querySelectorAll(`[id^="tab${moduleName}"]`).forEach(btn => btn.classList.remove('active'));
+            const lower = moduleName.toLowerCase();
+            document.querySelectorAll(`.tab-btn-${lower}`).forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll(`[id^="content${moduleName}"]`).forEach(content => content.classList.remove('active'));
+            
             document.getElementById(`tab${moduleName}${index}`).classList.add('active');
             document.getElementById(`content${moduleName}${index}`).classList.add('active');
             
@@ -374,7 +385,6 @@ HTML_TEMPLATE = """
             }
         }
 
-        // 一键拉取基础数据
         function loadAllData() {
             fetch('/api/inventory')
                 .then(res => res.json())
@@ -386,14 +396,12 @@ HTML_TEMPLATE = """
                     document.getElementById('todayAmount').innerText = '¥ ' + res.today_money.toFixed(2);
                     document.getElementById('todayCount').innerText = '今天已成功卖出: ' + res.today_count + ' 件货品';
 
-                    // 触发现页渲染
                     renderPagedTable('inventory');
                     renderPagedTable('sold');
                     renderPagedTable('today');
                 });
         }
 
-        // 💡 核心自研：通用前端多档位无感分页渲染引擎
         function renderPagedTable(key) {
             const config = pagerConfig[key];
             let data = [];
@@ -413,7 +421,6 @@ HTML_TEMPLATE = """
                 return;
             }
 
-            // 计算分页切片
             let totalItems = data.length;
             let totalPages = Math.ceil(totalItems / config.pageSize);
             if (config.currentPage > totalPages) config.currentPage = totalPages;
@@ -423,7 +430,6 @@ HTML_TEMPLATE = """
             let endIndex = Math.min(startIndex + config.pageSize, totalItems);
             let pageData = data.slice(startIndex, endIndex);
 
-            // 循环注入行（挂载品类变色标签）
             pageData.forEach(item => {
                 const tagHtml = getTypeTagHtml(item.category || '其他');
                 if (key === 'inventory') {
@@ -435,7 +441,6 @@ HTML_TEMPLATE = """
                 }
             });
 
-            // 💡 渲染分页控制器结构（提供 10, 20, 50, 100 档位切换）
             pagerDiv.innerHTML = `
                 <div>
                     显示 ${startIndex + 1}-${endIndex} / 共 ${totalItems} 条 
@@ -457,7 +462,6 @@ HTML_TEMPLATE = """
         function goToPage(key, page) { pagerConfig[key].currentPage = page; renderPagedTable(key); }
         function changePageSize(key, size) { pagerConfig[key].pageSize = parseInt(size); pagerConfig[key].currentPage = 1; renderPagedTable(key); }
 
-        // ================= 🔍 智能盘点模块 =================
         function startLocalStocktake() {
             fetch('/api/inventory')
                 .then(res => res.json())
@@ -512,7 +516,6 @@ HTML_TEMPLATE = """
             
             if(!confirm(`确认结束盘点吗？\n✅ 实盘：${scannedItems.length}件\n❌ 盘亏：${missingItems.length}件`)) return;
 
-            // 💡 升级：提交完整的亏损货品详细对象数组（不仅留编码，把名字、类别、金重一并打包上传）
             const report = {
                 total_expected: localStocktakeItems.length,
                 total_found: scannedItems.length,
@@ -535,7 +538,6 @@ HTML_TEMPLATE = """
             document.getElementById('stocktakeSetup').style.display = 'block';
         }
 
-        // 💡 加载历史盘点报告（渲染精准对账核心按键）
         function loadStocktakeHistory() {
             fetch('/api/stocktake/history')
                 .then(res => res.json())
@@ -549,10 +551,9 @@ HTML_TEMPLATE = """
                     data.reverse().forEach((r, idx) => {
                         const badgeClass = r.total_missing > 0 ? 'badge-red' : 'badge-green';
                         
-                        // 💡 核心设计：如果盘亏数大于0，展现精准明细穿透查询按钮，绑定整单索引
                         let actionBtnHtml = '-';
                         if(r.total_missing > 0) {
-                            actionBtnHtml = `<button class="page-btn" style="background:#007aff; color:white; font-size:11px; padding:3px 7px;" onclick="showMissingDetailPopup(${idx}, ${data.length})">🔍 查看明细</button>`;
+                            actionBtnHtml = `<button class="page-btn" style="background:#2f54eb; color:white; font-size:11px; padding:3px 7px;" onclick="showMissingDetailPopup(${idx}, ${data.length})">🔍 查看明细</button>`;
                         }
 
                         tbody.innerHTML += `<tr>
@@ -566,12 +567,10 @@ HTML_TEMPLATE = """
                 });
         }
 
-        // 💡 核心创新：拉出指定历史盘亏报告并渲染至弹窗中
         function showMissingDetailPopup(reverseIdx, totalLength) {
             fetch('/api/stocktake/history')
                 .then(res => res.json())
                 .then(data => {
-                    // 由于列表在展现层做了倒序展示(.reverse())，我们需要通过反向索引定位真实底层数据
                     const realIdx = totalLength - 1 - reverseIdx;
                     const report = data[realIdx];
                     
@@ -580,8 +579,7 @@ HTML_TEMPLATE = """
                     
                     const details = report.missing_details || [];
                     if(details.length === 0) {
-                        // 兼容老版本无详细字段数据的历史旧报告
-                        mbody.innerHTML = `<tr><td colspan="4" style="color:#999; text-align:center;">老版本报告未录入完整特征数据</td></tr>`;
+                        mbody.innerHTML = `<tr><td colspan="4" style="color:#999; text-align:center;">该报告未录入特征数据</td></tr>`;
                     } else {
                         details.forEach(item => {
                             mbody.innerHTML += `<tr>
@@ -592,15 +590,12 @@ HTML_TEMPLATE = """
                             </tr>`;
                         });
                     }
-                    
-                    // 唤醒 Modal 物理遮罩浮层
                     document.getElementById('detailModal').style.display = 'flex';
                 });
         }
 
         function closeModal() { document.getElementById('detailModal').style.display = 'none'; }
 
-        // ================= 扫码与常规业务闭环 =================
         function toggleScanner(type) {
             const isStocktake = (type === 'stocktake');
             const readerId = isStocktake ? 'stocktakeReader' : 'reader';
@@ -809,7 +804,7 @@ def stocktake_submit():
     history = load_stocktake_records()
     history.append(report)
     save_data(history, filename=STOCKTAKE_FILE, commit_msg=f"📋 上传新盘点报告 - 盘亏 {report['total_missing']} 件")
-    return jsonify({'success': True, 'msg': '🏁 盘点报告已成功上传！本地缓存已全部销毁。'})
+    return jsonify({'success': True, 'msg': '🏁 盘点报告已成功上传！'})
 
 @app.route('/api/stocktake/history', methods=['GET'])
 @requires_auth
