@@ -1,273 +1,309 @@
-from flask import Flask, request, jsonify, render_template_string
-import json
 import os
+import json
+from flask import Flask, request, jsonify, render_template_string
+import pandas as pd
 
 app = Flask(__name__)
+DATA_FILE = 'jewelry_data.json'
 
-DB_FILE = os.path.join(os.path.dirname(__file__), 'jewelry_data.json')
+def load_data():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
 
-if not os.path.exists(DB_FILE):
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump([], f, ensure_ascii=False)
-
-def read_db():
-    with open(DB_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-def write_db(data):
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
+def save_data(data):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+
+# 纯前端一体化 HTML 界面
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>丰高珠宝库存管理系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f4f5f7; margin: 0; padding: 15px; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        h2 { margin-top: 0; color: #111; font-size: 18px; border-left: 4px solid #007aff; padding-left: 8px; }
+        .btn { background: #007aff; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; width: 100%; cursor: pointer; font-weight: bold; }
+        .btn-green { background: #34c759; }
+        .btn-scan { background: #5856d6; margin-bottom: 10px; }
+        input[type="file"], input[type="text"] { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f9f9f9; font-weight: 600; }
+        .tips { font-size: 12px; color: #666; margin-top: 5px; line-height: 1.5; }
+        #reader { width: 100%; max-width: 400px; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>📦 货品入库 (Excel 导入)</h2>
+        <input type="file" id="excelFile" accept=".xlsx, .xls">
+        <button class="btn btn-green" onclick="uploadExcel()">选择并导入 Excel 文件</button>
+        <div class="tips">💡 支持任意供应商表格，系统会自动智能识别「标签/条码、名称、重、件数」等核心列。如果某些行数据不全（如为空），系统会自动跳过或允许空值，确保顺利导入。</div>
+    </div>
+
+    <div class="card">
+        <h2>🛒 商品出库 (扫码/手动)</h2>
+        <button class="btn btn-scan" id="scanBtn" onclick="toggleScanner()">📷 点击扫码卖出</button>
+        <div id="reader"></div>
+        <input type="text" id="barcodeInput" placeholder="栏位无法扫码时，请在此手动输入条码">
+        <button class="btn" onclick="submitCheckout()">确认核销出库</button>
+        <div class="tips" style="color: #ff9500;">⚠️ 提示：若点击扫码无反应，请点击微信右上角「...」选择「在浏览器中打开」即可完美解锁摄像头！</div>
+    </div>
+
+    <div class="card">
+        <h2>📊 实时库存看板</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>标签号/条码</th>
+                        <th>货品名称</th>
+                        <th>金重(g)</th>
+                        <th>件数</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let html5QrcodeScanner = null;
+
+        // 页面加载自动刷新库存
+        window.onload = loadInventory;
+
+        function loadInventory() {
+            fetch('/api/inventory')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('inventoryBody');
+                    tbody.innerHTML = '';
+                    if(data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999;">暂无库存，请先导入 Excel</td></tr>';
+                        return;
+                    }
+                    data.forEach(item => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td><b>${item.code || '-'}</b></td>
+                                <td>${item.name || '-'}</td>
+                                <td>${item.weight || 0}g</td>
+                                <td>${item.quantity || 1}</td>
+                                <td style="color: ${item.status === '已售出' ? '#ff3b30' : '#34c759'}; font-weight:bold;">
+                                    ${item.status || '在售'}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                });
+        }
+
+        // 智能 Excel 上传
+        function uploadExcel() {
+            const fileInput = document.getElementById('excelFile');
+            if (!fileInput.files[0]) {
+                alert('请先选择一个 Excel 文件！');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            fetch('/api/import', { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    alert(res.msg);
+                    if (res.success) {
+                        loadInventory();
+                    }
+                })
+                .catch(() => alert('网络异常，Excel 解析失败，请检查文件格式'));
+        }
+
+        // 扫码控制开关
+        function toggleScanner() {
+            const readerDiv = document.getElementById('reader');
+            const scanBtn = document.getElementById('scanBtn');
+            
+            if (readerDiv.style.display === 'block') {
+                stopScanner();
+            } else {
+                readerDiv.style.display = 'block';
+                scanBtn.innerText = '🛑 关闭扫码器';
+                html5QrcodeScanner = new Html5Qrcode("reader");
+                html5QrcodeScanner.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    (decodedText) => {
+                        document.getElementById('barcodeInput').value = decodedText;
+                        stopScanner();
+                        alert('成功扫码识别条码: ' + decodedText + ' ！请点击下方确认出库。');
+                    },
+                    () => {} // 忽略暂未扫到时的静默
+                ).catch(err => {
+                    alert("摄像头开启失败。若在微信内，请点击右上角...选择在浏览器中打开！");
+                    stopScanner();
+                });
+            }
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    document.getElementById('reader').style.display = 'none';
+                    document.getElementById('scanBtn').innerText = '📷 点击扫码卖出';
+                }).catch(() => {
+                    document.getElementById('reader').style.display = 'none';
+                    document.getElementById('scanBtn').innerText = '📷 点击扫码卖出';
+                });
+            }
+        }
+
+        // 核销出库
+        function submitCheckout() {
+            const code = document.getElementById('barcodeInput').value.trim();
+            if (!code) {
+                alert('请输入或扫码录入条码！');
+                return;
+            }
+            fetch('/api/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: json.stringify({ code: code })
+            })
+            .then(res => res.json())
+            .then(res => {
+                alert(res.msg);
+                if (res.success) {
+                    document.getElementById('barcodeInput').value = '';
+                    loadInventory();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+"""
 
 @app.route('/')
 def index():
-    html_content = '''
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>珠宝店多端同步云助手 v4.0</title>
-        <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/html5-qrcode/2.1.6/html5-qrcode.min.js"></script>
-        <script src="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <style>
-            :root { --primary-color: #2ecc71; --danger-color: #e74c3c; --bg-color: #333333; --card-bg: #444444; --text-color: #ffffff; }
-            * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); padding: 10px; padding-bottom: 30px; font-size: 14px; }
-            .kpi-container { display: flex; gap: 10px; margin-bottom: 15px; }
-            .kpi-card { flex: 1; background: var(--card-bg); border-radius: 8px; padding: 12px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-            .kpi-title { font-size: 13px; color: #aaa; margin-bottom: 4px; }
-            .kpi-value { font-size: 22px; font-weight: bold; }
-            .kpi-value.stock { color: var(--primary-color); }
-            .kpi-value.sold { color: var(--danger-color); }
-            .section-title { font-size: 15px; font-weight: bold; margin: 15px 0 8px 0; }
-            .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; color: white; text-align: center; cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,0.3); margin-bottom: 12px; }
-            .btn-sell { background: linear-gradient(135deg, #e74c3c, #c0392b); }
-            .btn-import { background: linear-gradient(135deg, #2ecc71, #27ae60); position: relative; }
-            .file-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-            .notice-box { background: rgba(241, 196, 15, 0.15); border-left: 4px solid #f1c40f; padding: 10px; border-radius: 4px; font-size: 12px; color: #f1c40f; margin-bottom: 15px; }
-            .view-toggle { display: flex; background: var(--card-bg); border-radius: 8px; padding: 3px; margin-bottom: 12px; }
-            .toggle-btn { flex: 1; padding: 10px; text-align: center; border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer; }
-            .toggle-btn.active { background: #555; color: var(--primary-color); }
-            .data-list { background: var(--card-bg); border-radius: 8px; overflow: hidden; }
-            .table-header, .table-row { display: flex; padding: 10px; border-bottom: 1px solid #555; align-items: center; }
-            .table-header { background: #4f4f4f; font-weight: bold; font-size: 12px; color: #ddd; }
-            .col-info { flex: 2.5; min-width: 0; }
-            .col-cate { flex: 1.2; text-align: center; }
-            .col-weight { flex: 1.2; text-align: right; }
-            .col-price { flex: 1.5; text-align: right; font-weight: bold; }
-            .col-fee { flex: 1.2; text-align: right; }
-            .good-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .good-barcode { font-size: 11px; color: #999; margin-top: 2px; font-family: monospace; }
-            #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 15px; display: none; }
-            .text-center { text-align: center; padding: 20px; color: #aaa; }
-            .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
-            .modal-content { background: var(--card-bg); padding: 20px; border-radius: 12px; width: 100%; max-width: 400px; }
-            .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; text-align: center; }
-            .input-control { width: 100%; padding: 12px; border: 1px solid #555; background: #333; color: white; border-radius: 6px; font-size: 16px; margin-bottom: 15px; }
-            .modal-foot { display: flex; gap: 10px; }
-            .btn-m { flex: 1; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-            .btn-confirm { background: #f39c12; color: white; }
-            .btn-cancel { background: #666; color: white; }
-        </style>
-    </head>
-    <body>
-        <div class="kpi-container">
-            <div class="kpi-card"><div class="kpi-title">在库总件数</div><div class="kpi-value stock" id="kpi-stock">加载中...</div></div>
-            <div class="kpi-card"><div class="kpi-title">今日已售</div><div class="kpi-value sold" id="kpi-sold">加载中...</div></div>
-        </div>
+    return render_template_string(HTML_TEMPLATE)
 
-        <div id="reader"></div>
+@app.route('/api/inventory', methods=['GET'])
+def get_inventory():
+    return jsonify(load_data())
 
-        <div class="section-title">🛍️ 商品出库（卖出）</div>
-        <button class="btn btn-sell" onclick="toggleScanner()">📷 点击扫码卖出</button>
-        <button class="btn btn-sell" style="background: linear-gradient(135deg, #f39c12, #d35400); margin-top:-5px;" onclick="openManualModal()">✏️ 手动输入条码卖出</button>
+@app.route('/api/import', methods=['POST'])
+def import_excel():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'msg': '未找到上传文件'})
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'msg': '未选择任何文件'})
+    
+    try:
+        # 读取 Excel 文件
+        df = pd.read_excel(file)
+        df.columns = [str(c).strip() for c in df.columns] # 清洗列名空格
+        
+        # 智能模糊匹配列名映射逻辑（与 HTML 预期完全一致）
+        code_col, name_col, weight_col, qty_col = None, None, None, None
+        
+        for col in df.columns:
+            low_col = col.lower()
+            if any(k in low_col for k in ['标签', '条码', '编码', '码', 'code', 'id']):
+                code_col = col
+            elif any(k in low_col for k in ['名', '货品', '商品', '款式', 'name']):
+                name_col = col
+            elif any(k in low_col for k in ['重', '金重', '克重', '重量', 'weight']):
+                weight_col = col
+            elif any(k in low_col for k in ['件', '数量', '数', 'quantity', 'qty']):
+                qty_col = col
 
-        <div class="section-title">📥 货物入库（规范 Excel 导入）</div>
-        <div class="notice-box">⚠️ Excel 必须包含这6列：<strong>条码、名称、品类、克重、标价、工费</strong></div>
-        <button class="btn btn-import">
-            💚 选择并导入 Excel 文件
-            <input type="file" class="file-input" id="excel-file" accept=".xlsx, .xls" onchange="importExcel(this)">
-        </button>
+        if not code_col:
+            return jsonify({'success': False, 'msg': f'导入失败：Excel 中找不到包含“标签”或“条码”的列名。当前列名有: {list(df.columns)}'})
 
-        <div class="view-toggle">
-            <div class="toggle-btn active" id="btn-view-stock" onclick="switchView('stock')">当前在库清单</div>
-            <div class="toggle-btn" id="btn-view-sold" onclick="switchView('sold')">看已售账本</div>
-        </div>
+        current_data = load_data()
+        existing_codes = {str(item['code']) for item in current_data}
+        new_count = 0
 
-        <div class="data-list">
-            <div class="table-header">
-                <div class="col-info">商品信息</div><div class="col-cate">品类</div><div class="col-weight">克重</div><div class="col-price">标价</div><div class="col-fee">工费</div>
-            </div>
-            <div id="table-body"></div>
-        </div>
-
-        <div class="modal" id="manual-modal">
-            <div class="modal-content">
-                <div class="modal-title">手动核销核对</div>
-                <input type="text" class="input-control" id="manual-barcode" placeholder="请输入完整条码">
-                <div class="modal-foot">
-                    <button class="btn-m btn-confirm" onclick="submitManualSell()">确认卖出</button>
-                    <button class="btn-m btn-cancel" onclick="closeManualModal()">取消</button>
-                </div>
-            </div>
-        </div>
-
-        <script>
-            let db = [];
-            let currentView = 'stock';
-            let html5QrcodeScanner = null;
-
-            window.onload = function() { loadDataFromServer(); };
-
-            function loadDataFromServer() {
-                fetch('/api/data')
-                    .then(res => res.json())
-                    .then(data => {
-                        db = data;
-                        refreshUI();
-                    });
-            }
-
-            function syncDataToServer() {
-                fetch('/api/sync', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(db)
-                })
-                .then(res => res.json())
-                .then(res => { if(!res.success) alert("数据同步失败！"); });
-            }
-
-            function refreshUI() {
-                const stockList = db.filter(item => !item.sold_time);
-                const todayStr = new Date().toDateString();
-                const soldTodayList = db.filter(item => item.sold_time && new Date(item.sold_time).toDateString() === todayStr);
+        # 逐行处理数据，允许部分空值，确保高鲁棒性
+        for _, row in df.iterrows():
+            raw_code = row[code_col]
+            if pd.isna(raw_code):
+                continue # 条码为空的行直接跳过
                 
-                document.getElementById('kpi-stock').innerText = stockList.length + ' 件';
-                document.getElementById('kpi-sold').innerText = soldTodayList.length + ' 件';
-                
-                const renderList = currentView === 'stock' ? stockList : db.filter(item => item.sold_time).sort((a,b)=>new Date(b.sold_time)-new Date(a.sold_time));
-                const tbody = document.getElementById('table-body');
-                tbody.innerHTML = '';
-                
-                if (renderList.length === 0) {
-                    tbody.innerHTML = `<div class="text-center">暂无${currentView === 'stock'?'在库商品':'已售记录'}</div>`;
-                    return;
-                }
-                
-                renderList.forEach(item => {
-                    const row = document.createElement('div');
-                    row.className = 'table-row';
-                    row.innerHTML = `
-                        <div class="col-info">
-                            <div class="good-name">${item.名称 || '未命名'}</div>
-                            <div class="good-barcode">${item.条码}</div>
-                            ${item.sold_time ? `<div style="font-size:11px; color:#e74c3c; margin-top:2px;">售出: ${new Date(item.sold_time).toLocaleTimeString()}</div>` : ''}
-                        </div>
-                        <div class="col-cate">${item.品类 || '-'}</div>
-                        <div class="col-weight">${item.克重 ? parseFloat(item.克重).toFixed(2)+'g' : '0g'}</div>
-                        <div class="col-price">${item.标价 ? '￥'+parseFloat(item.标价).toFixed(0) : '￥0'}</div>
-                        <div class="col-fee">${item.工费 ? '￥'+parseFloat(item.工费).toFixed(0) : '￥0'}</div>
-                    `;
-                    tbody.appendChild(row);
-                });
-            }
+            code_str = str(raw_code).strip().split('.')[0] # 防止条码变成浮点数带.0
+            if not code_str or code_str in existing_codes:
+                continue # 跳过空条码或重复记录
 
-            function switchView(view) {
-                currentView = view;
-                document.getElementById('btn-view-stock').className = view === 'stock' ? 'toggle-btn active' : 'toggle-btn';
-                document.getElementById('btn-view-sold').className = view === 'sold' ? 'toggle-btn active' : 'toggle-btn';
-                refreshUI();
-            }
+            # 提取其他字段，若为空则赋予安全的默认值
+            name_val = str(row[name_col]).strip() if (name_col and not pd.isna(row[name_col])) else "未命名珠宝"
+            weight_val = ""
+            if weight_col and not pd.isna(row[weight_col]):
+                try:
+                    weight_val = str(round(float(row[weight_col]), 3))
+                except:
+                    weight_val = str(row[weight_col]).strip()
+            
+            qty_val = 1
+            if qty_col and not pd.isna(row[qty_col]):
+                try:
+                    qty_val = int(row[qty_col])
+                except:
+                    qty_val = 1
 
-            function toggleScanner() {
-                const readerDiv = document.getElementById('reader');
-                if (readerDiv.style.display === 'block') { stopScanner(); } 
-                else {
-                    readerDiv.style.display = 'block';
-                    html5QrcodeScanner = new Html5Qrcode("reader");
-                    html5QrcodeScanner.start(
-                        { facingMode: "environment" },
-                        { fps: 10, qrbox: { width: 250, height: 150 } },
-                        (decodedText) => { triggerSell(decodedText); stopScanner(); }
-                    ).catch(err => {
-                        alert("摄像头启动失败！由于您正在通过自定义内网环境运行，手机访问时请确保浏览器开启了摄像头权限。");
-                        readerDiv.style.display = 'none';
-                    });
-                }
-            }
+            current_data.append({
+                "code": code_str,
+                "name": name_val,
+                "weight": weight_val,
+                "quantity": qty_val,
+                "status": "在售"
+            })
+            existing_codes.add(code_str)
+            new_count += 1
 
-            function stopScanner() {
-                if (html5QrcodeScanner) { html5QrcodeScanner.stop().then(() => { document.getElementById('reader').style.display = 'none'; }); }
-            }
+        save_data(current_data)
+        return jsonify({'success': True, 'msg': f'🎉 成功智能导入 {new_count} 件全新货品！'})
 
-            function triggerSell(barcode) {
-                if (!barcode) return;
-                barcode = barcode.trim();
-                const index = db.findIndex(item => item.条码 === barcode);
-                if (index === -1) { alert(`❌ 货品条码【${barcode}】未在库中找到！`); return; }
-                if (db[index].sold_time) { alert(`⚠️ 【${db[index].名称}】之前已核销售出过！`); return; }
-                
-                db[index].sold_time = new Date().toISOString();
-                alert(`🎉 核销成功！\n条码：${barcode}\n品名：${db[index].名称}`);
-                refreshUI();
-                syncDataToServer();
-            }
+    except Exception as e:
+        return jsonify({'success': False, 'msg': f'Excel 解析失败，错误原因: {str(e)}'})
 
-            function openManualModal() { document.getElementById('manual-modal').style.display = 'flex'; document.getElementById('manual-barcode').focus(); }
-            function closeManualModal() { document.getElementById('manual-modal').style.display = 'none'; document.getElementById('manual-barcode').value = ''; }
-            function submitManualSell() {
-                const barcode = document.getElementById('manual-barcode').value;
-                if(!barcode) return;
-                triggerSell(barcode);
-                closeManualModal();
-            }
-
-            function importExcel(input) {
-                const file = input.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const rawJson = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                        
-                        rawJson.forEach(row => {
-                            let barcode = row['条码'] ? String(row['条码']).trim() : '';
-                            if (!barcode) return;
-                            const existingIndex = db.findIndex(item => item.条码 === barcode);
-                            if (existingIndex > -1) {
-                                if (!db[existingIndex].sold_time) {
-                                    db[existingIndex] = { ...db[existingIndex], 名称: row['名称'], 品类: row['品类'], 克重: row['克重'], 标价: row['标价'], 工费: row['工费'] };
-                                }
-                            } else {
-                                db.push({ 条码: barcode, 名称: row['名称'], 品类: row['品类'], 克重: row['克重'], 标价: row['标价'], 工费: row['工费'], sold_time: null });
-                            }
-                        });
-                        alert("📦 Excel 商品数据成功合并洗入云端库！");
-                        refreshUI();
-                        syncDataToServer();
-                    } catch (err) { alert("Excel 解析失败！"); }
-                    input.value = '';
-                };
-                reader.readAsArrayBuffer(file);
-            }
-        </script>
-    </body>
-    </html>
-    '''
-    return render_template_string(html_content)
-
-@app.route('/api/data', methods=['GET'])
-def get_data():
-    return jsonify(read_db())
-
-@app.route('/api/sync', methods=['POST'])
-def sync_data():
-    client_data = request.json
-    write_db(client_data)
-    return jsonify({"success": True})
+@app.route('/api/checkout', methods=['POST'])
+def checkout():
+    req = request.get_json() or {}
+    code = str(req.get('code', '')).strip()
+    if not code:
+        return jsonify({'success': False, 'msg': '无效的条码'})
+        
+    current_data = load_data()
+    found = False
+    for item in current_data:
+        if str(item['code']).strip() == code:
+            if item['status'] == '已售出':
+                return jsonify({'success': False, 'msg': f'提示：条码 {code} 之前已经核销过，属于已售状态！'})
+            item['status'] = '已售出'
+            found = True
+            break
+            
+    if found:
+        save_data(current_data)
+        return jsonify({'success': True, 'msg': f'🛍️ 珠宝 {code} 核销成功！状态已变更为已售出。'})
+    else:
+        return jsonify({'success': False, 'msg': f'❌ 核销失败：在系统库中未找到条码为 {code} 的货品，请确认是否已导入该 Excel。'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
