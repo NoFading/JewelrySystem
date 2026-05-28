@@ -1,2 +1,20 @@
 [
+    {
+        "code": "wyy03",
+        "name": "足金手镯",
+        "category": "手镯",
+        "weight": "25.56",
+        "tag_price": "",
+        "wage": "100.0",
+        "status": "在售"
+    },
+    {
+        "code": "wyy04",
+        "name": "足银手镯",
+        "category": "手镯",
+        "weight": "20.36",
+        "tag_price": "1000.0",
+        "wage": "",
+        "status": "在售"
+    }
 ]
