@@ -12,5 +12,12 @@
         "total_missing": 0,
         "missing_detail_codes": "无（全部盘齐）",
         "timestamp": "2026-05-29 04:03:05"
+    },
+    {
+        "total_expected": 2,
+        "total_found": 2,
+        "total_missing": 0,
+        "missing_detail_codes": "无（全部盘齐）",
+        "timestamp": "2026-05-29 04:07:28"
     }
 ]
