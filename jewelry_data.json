@@ -1,17 +1,2 @@
 [
-    {
-        "code": "wyy03",
-        "name": "足金手镯",
-        "weight": "25.56",
-        "quantity": 1,
-        "status": "在售"
-    },
-    {
-        "code": "wyy04",
-        "name": "足银手镯",
-        "weight": "20.36",
-        "quantity": 1,
-        "status": "已售出",
-        "sold_date": "2026-05-29"
-    }
 ]
