@@ -306,4 +306,6 @@ def checkout():
         return jsonify({'success': False, 'msg': f'❌ 核销失败：在系统库中未找到条码为 {code} 的货品，请确认是否已导入该 Excel。'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # 自动获取 Render 分配的端口，如果没有就默认 5000
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
