@@ -12,8 +12,8 @@ DATA_FILE = 'jewelry_data.json'
 STOCKTAKE_FILE = 'stocktake_records.json'
 
 # ================= 🔐 安全登录配置区 =================
-USER_ACCOUNT = "admin"
-USER_PASSWORD = "666" 
+USER_ACCOUNT = "fenggao"
+USER_PASSWORD = "123456" 
 # ===================================================
 
 GH_TOKEN = os.environ.get('GH_TOKEN')
@@ -28,7 +28,7 @@ def requires_auth(f):
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
             return Response(
-                '<h1>🔒 丰高珠宝管理系统：未授权访问</h1><p>请输入正确的管理员账号与密码。</p>', 
+                '<h1>🔒 峰高珠宝管理系统：未授权访问</h1><p>请输入正确的管理员账号与密码。</p>', 
                 401,
                 {'WWW-Authenticate': 'Basic realm="Login Required"'}
             )
@@ -87,7 +87,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>丰高珠宝管理系统 7.1 精配对账版</title>
+    <title>峰高珠宝管理系统 7.1 精配对账版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; }
