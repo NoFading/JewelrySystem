@@ -11,6 +11,7 @@
         "name": "足银手镯",
         "weight": "20.36",
         "quantity": 1,
-        "status": "在售"
+        "status": "已售出",
+        "sold_date": "2026-05-29"
     }
 ]
