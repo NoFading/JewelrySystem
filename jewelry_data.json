@@ -15,8 +15,6 @@
         "weight": "20.36",
         "tag_price": "1000.0",
         "wage": "",
-        "status": "已售出",
-        "sold_date": "2026-05-29",
-        "sold_price": "3500.0"
+        "status": "在售"
     }
 ]
