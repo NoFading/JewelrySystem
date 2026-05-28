@@ -11,7 +11,7 @@ app = Flask(__name__)
 DATA_FILE = 'jewelry_data.json'
 STOCKTAKE_FILE = 'stocktake_records.json'
 
-# ================= 🔐 安全登录配置区 (已按要求固化) =================
+# ================= 🔐 安全登录配置区 =================
 USER_ACCOUNT = "fenggao"
 USER_PASSWORD = "123456" 
 # ===================================================================
@@ -87,7 +87,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>峰高珠宝管理系统 7.2 视觉精调版</title>
+    <title>峰高珠宝管理系统 7.3 款式变色版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; }
@@ -97,20 +97,16 @@ HTML_TEMPLATE = """
         .sales-dashboard h3 { margin: 0; font-size: 13px; opacity: 0.9; font-weight: normal; }
         .sales-dashboard .count { font-size: 30px; font-weight: bold; margin: 6px 0; font-family: Arial, sans-serif; }
         
-        /* 💡 升级：第一组 Tab 基础容器与独立变色设计 (前台操作区) */
         .tab-header-op { display: flex; background: #eef0f3; border-radius: 8px; padding: 2px; margin-bottom: 12px; gap: 2px; }
         .tab-btn-op { flex: 1; text-align: center; padding: 10px 0; font-size: 12px; cursor: pointer; border-radius: 6px; font-weight: bold; color: #555; transition: all 0.2s; }
         
-        /* 激活时的雅致色彩区分 */
         #tabOp1.active { background: #fff1f0; color: #e03131; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #ff3b30; }
         #tabOp2.active { background: #e6f7ff; color: #096dd9; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #007aff; }
         #tabOp3.active { background: #f9f0ff; color: #531dab; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #5856d6; }
         
-        /* 💡 升级：第二组 Tab 基础容器与独立变色设计 (后台看板区) */
         .tab-header-view { display: flex; background: #eef0f3; border-radius: 8px; padding: 2px; margin-bottom: 12px; gap: 2px; }
         .tab-btn-view { flex: 1; text-align: center; padding: 10px 0; font-size: 12px; cursor: pointer; border-radius: 6px; font-weight: bold; color: #555; transition: all 0.2s; }
         
-        /* 激活时的雅致色彩区分 */
         #tabView1.active { background: #f6ffed; color: #389e0d; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #34c759; }
         #tabView2.active { background: #fff7e6; color: #d46b08; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #ff9500; }
         #tabView3.active { background: #f0f5ff; color: #1d39c4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 2px solid #2f54eb; }
@@ -340,15 +336,23 @@ HTML_TEMPLATE = """
 
         window.onload = loadAllData;
 
+        // 💡 核心升级：按照正确的“款式品类”进行低饱和度马卡龙变色
         function getTypeTagHtml(typeStr) {
             const val = String(typeStr || '').trim();
-            let bg = '#f1f3f5', color = '#495057';
+            let bg = '#eef0f3', color = '#495057'; // 默认：清爽浅灰
             
-            if (val.includes('足金') || val.includes('黄金')) { bg = '#fef6e0'; color = '#b27b00'; }
-            else if (val.includes('K金') || val.includes('18K')) { bg = '#faecea'; color = '#be5a4d'; }
-            else if (val.includes('钻石') || val.includes('铂金')) { bg = '#eaf2f8'; color = '#2e6da4'; }
-            else if (val.includes('翡翠') || val.includes('玉')) { bg = '#eafaf1'; color = '#278946'; }
-            else if (val.includes('银')) { bg = '#f3f4f7'; color = '#6c757d'; }
+            if (val.includes('戒指') || val.includes('耳饰') || val.includes('耳')) { 
+                bg = '#fff0f6'; color = '#c41d7f'; // 💍 戒指/耳饰：柔和淡粉
+            }
+            else if (val.includes('项链') || val.includes('手链') || val.includes('套链') || val.includes('链')) { 
+                bg = '#e6f7ff'; color = '#096dd9'; // 📿 各种链类：优雅淡蓝
+            }
+            else if (val.includes('手镯')) { 
+                bg = '#f6ffed'; color = '#389e0d'; // 👋 手镯：温润浅绿
+            }
+            else if (val.includes('挂坠') || val.includes('吊坠') || val.includes('坠')) { 
+                bg = '#f9f0ff'; color = '#531dab'; // 🔮 吊坠/挂坠：高雅淡紫
+            }
             
             return `<span class="type-tag" style="background: ${bg}; color: ${color};">${val}</span>`;
         }
