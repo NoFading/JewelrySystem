@@ -1,16 +1,40 @@
 import os
 import json
 import base64
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, Response
 import pandas as pd
 from datetime import datetime, timedelta
 import urllib.request
+from functools import wraps
 
 app = Flask(__name__)
 DATA_FILE = 'jewelry_data.json'
 
+# ================= 🔐 安全登录配置区 =================
+# 你可以把下方的 'admin' 和 'fenggao888' 改成你自己想要的账号和密码
+USER_ACCOUNT = "admin"
+USER_PASSWORD = "666" 
+# ===================================================
+
 GH_TOKEN = os.environ.get('GH_TOKEN')
 GH_REPO = os.environ.get('GH_REPO')
+
+# 💡 安全升级：强制账密登录验证拦截器
+def check_auth(username, password):
+    return username == USER_ACCOUNT and password == USER_PASSWORD
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return Response(
+                '<h1>🔒 丰高珠宝管理系统：未授权访问</h1><p>请输入正确的管理员账号与密码。</p>', 
+                401,
+                {'WWW-Authenticate': 'Basic realm="Login Required"'}
+            )
+        return f(*args, **kwargs)
+    return decorated
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -54,7 +78,7 @@ def save_data(data):
         except:
             pass
         put_data = {
-            "message": "🔄 5.0 支持退货核销账本同步",
+            "message": "🔄 6.0 账密加密安全版同步",
             "content": base64.b64encode(content_str.encode('utf-8')).decode('utf-8')
         }
         if sha: put_data["sha"] = sha
@@ -77,18 +101,16 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>丰高珠宝管理系统 5.0 退货核销版</title>
+    <title>丰高珠宝管理系统 6.0 安全加密版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; -webkit-text-size-adjust: 100%; }
         .card { background: white; padding: 12px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 10px; box-sizing: border-box; }
         
-        /* 今日出库简报 */
         .sales-dashboard { background: linear-gradient(135deg, #ff9500, #ff3b30); color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(255,59,48,0.2); }
         .sales-dashboard h3 { margin: 0; font-size: 13px; opacity: 0.9; font-weight: normal; letter-spacing: 1px; }
         .sales-dashboard .count { font-size: 30px; font-weight: bold; margin: 6px 0; font-family: Arial, sans-serif; }
         
-        /* Tab 标签切换样式 */
         .tab-header { display: flex; background: #eee; border-radius: 8px; padding: 2px; margin-bottom: 10px; }
         .tab-btn { flex: 1; text-align: center; padding: 9px 0; font-size: 13px; cursor: pointer; border-radius: 6px; font-weight: bold; color: #666; transition: all 0.2s; }
         .tab-btn.active { background: white; color: #ff3b30; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -101,7 +123,6 @@ HTML_TEMPLATE = """
         .btn-blue { background: #007aff; }
         .btn-scan { background: #5856d6; margin-bottom: 8px; }
         
-        /* 内部小切换，用于区分销售和退货 */
         .action-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
         .action-radio { flex: 1; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; background: #fafafa; }
         .action-radio.selected-sale { background: #fff5f5; border-color: #ff3b30; color: #ff3b30; }
@@ -110,7 +131,6 @@ HTML_TEMPLATE = """
         .input-title { font-size: 12px; color: #666; margin-top: 6px; font-weight: bold; }
         input[type="file"], input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin: 4px 0 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
         
-        /* 看板手势横滑 */
         .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #eee; border-radius: 6px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
         th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
@@ -123,14 +143,12 @@ HTML_TEMPLATE = """
 </head>
 <body>
 
-    <!-- ⚡ 今日业绩速报 (支持退货负向扣减) -->
     <div class="sales-dashboard" onclick="toggleSection('todayDetailBox')">
         <h3>💰 今日累计销售额</h3>
         <div class="count" id="todayAmount">¥ 0.00</div>
         <div id="todayCount" style="font-size: 12px; opacity: 0.9;">今天已成功卖出: 0 件货品</div>
     </div>
 
-    <!-- 🛍️ 今日销售明细 -->
     <div class="card" id="todayDetailBox">
         <h2>🛍️ 今日卖出商品明细 (横滑可看售价)</h2>
         <div class="table-container">
@@ -145,19 +163,16 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <!-- 🔄 模块一：【前台收银与日常操作中心】 -->
     <div class="card">
         <div class="tab-header">
             <div class="tab-btn active" id="tabOp1" onclick="switchTab('Op', 1)">🛒 柜台商品销售 (收银)</div>
             <div class="tab-btn" id="tabOp2" onclick="switchTab('Op', 2)">📦 批量货品入库 (Excel)</div>
         </div>
         
-        <!-- 子页1：前台销售 & 退货 -->
         <div class="tab-content active" id="contentOp1">
             <button class="btn btn-scan" id="scanBtn" onclick="toggleScanner()">📷 开启摄像头扫码</button>
             <div id="reader"></div>
             
-            <!-- 💡 优化项：销售与退货模式切换 -->
             <div class="input-title">请选择当前柜台操作：</div>
             <div class="action-toggle">
                 <div class="action-radio selected-sale" id="modeSale" onclick="setMode('sale')">🛍️ 正常销售记账</div>
@@ -176,7 +191,6 @@ HTML_TEMPLATE = """
             <div class="tips" id="modeTips">提示：点击上方按钮后，货品将自动转入已售账本，并实时累加到今日总销售额中。</div>
         </div>
         
-        <!-- 子页2：后台入库 -->
         <div class="tab-content" id="contentOp2">
             <input type="file" id="excelFile" accept=".xlsx, .xls">
             <button class="btn btn-green" onclick="uploadExcel()">选择并解析新货 Excel</button>
@@ -187,7 +201,6 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <!-- 安全入库预览 -->
     <div class="preview-zone" id="previewZone">
         <h2 style="border-left-color: #ff9500; font-size:13px;">⚠️ 待入库新货安全预览</h2>
         <div class="table-container" style="max-height: 150px; background: white;">
@@ -204,14 +217,12 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <!-- 💎 模块二：【后台库存看板中心】 -->
     <div class="card">
         <div class="tab-header">
             <div class="tab-btn active" id="tabView1" onclick="switchTab('View', 1)">🟢 店内当前在售存货</div>
             <div class="tab-btn" id="tabView2" onclick="switchTab('View', 2)">📜 历史已售出累计账本</div>
         </div>
         
-        <!-- 存货 -->
         <div class="tab-content active" id="contentView1">
             <div class="table-container">
                 <table>
@@ -223,7 +234,6 @@ HTML_TEMPLATE = """
             </div>
         </div>
         
-        <!-- 历史已售 -->
         <div class="tab-content" id="contentView2">
             <div class="table-container">
                 <table>
@@ -241,7 +251,7 @@ HTML_TEMPLATE = """
     <script>
         let html5QrcodeScanner = null;
         let tempParsedData = null;
-        let currentMode = 'sale'; // 'sale' 或 'return'
+        let currentMode = 'sale';
 
         window.onload = loadAllData;
 
@@ -257,7 +267,6 @@ HTML_TEMPLATE = """
             el.style.display = (el.style.display === 'none') ? 'block' : 'none';
         }
 
-        // 💡 优化项：动态切换销售和退货的前端视觉
         function setMode(mode) {
             currentMode = mode;
             const modeSale = document.getElementById('modeSale');
@@ -274,20 +283,23 @@ HTML_TEMPLATE = """
                 submitOpBtn.className = 'btn';
                 modeTips.innerText = '提示：点击上方按钮后，货品将自动转入已售账本，并实时累加到今日总销售额中。';
             } else {
-                modeSale.remove('selected-sale');
                 modeSale.classList.remove('selected-sale');
                 modeReturn.classList.add('selected-return');
                 priceInputArea.style.display = 'none';
                 submitOpBtn.innerText = '🔄 确认退货并恢复库存';
                 submitOpBtn.className = 'btn btn-blue';
-                modeTips.innerText = '提示：办理退货后，该货品将从已售账本中剔除、重新回到在售库存，且今日大盘销售额会自动扣减这笔退款。';
+                modeTips.innerText = '提示：办理退货后，该货品将从已售账本中剔除并重新回到在售库存。';
             }
         }
 
         function loadAllData() {
             fetch('/api/inventory')
-                .then(res => res.json())
                 .then(res => {
+                    if (res.status === 401) { alert("登录失效，请刷新页面重新登录！"); return; }
+                    return res.json();
+                })
+                .then(res => {
+                    if(!res) return;
                     const tbody = document.getElementById('inventoryBody');
                     tbody.innerHTML = '';
                     if(!res.active || res.active.length === 0) {
@@ -396,7 +408,6 @@ HTML_TEMPLATE = """
             }
         }
 
-        // 💡 核心操作分流控制
         function executeOperation() {
             const code = document.getElementById('barcodeInput').value.trim();
             if (!code) { alert('请先输入或扫描货品条码！'); return; }
@@ -420,8 +431,7 @@ HTML_TEMPLATE = """
                     }
                 });
             } else {
-                // 💡 退货处理
-                if (!confirm(`确认要为条码 [${code}] 办理退货核销吗？该货品将重新上架为在售库存。`)) return;
+                if (!confirm(`确认要为条码 [${code}] 办理退货核销吗？`)) return;
                 fetch('/api/return_item', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -443,10 +453,12 @@ HTML_TEMPLATE = """
 """
 
 @app.route('/')
+@requires_auth
 def index():
     return render_template_string(HTML_TEMPLATE)
 
 @app.route('/api/inventory', methods=['GET'])
+@requires_auth
 def get_inventory():
     all_data = load_data()
     today_str = get_bj_today()
@@ -472,6 +484,7 @@ def get_inventory():
     })
 
 @app.route('/api/parse_preview', methods=['POST'])
+@requires_auth
 def parse_preview():
     if 'file' not in request.files: return jsonify({'success': False, 'msg': '未找到文件'})
     file = request.files['file']
@@ -527,6 +540,7 @@ def parse_preview():
         return jsonify({'success': False, 'msg': str(e)})
 
 @app.route('/api/confirm_save', methods=['POST'])
+@requires_auth
 def confirm_save():
     req = request.get_json() or {}
     new_items = req.get('data', [])
@@ -546,6 +560,7 @@ def confirm_save():
     return jsonify({'success': True, 'msg': f'🎉 成功入库 {added_count} 件新品！'})
 
 @app.route('/api/checkout', methods=['POST'])
+@requires_auth
 def checkout():
     req = request.get_json() or {}
     code = str(req.get('code', '')).strip()
@@ -569,8 +584,8 @@ def checkout():
             return jsonify({'success': True, 'msg': f'🛍 货品 {code} 成功售出！实收金额 ¥{item["sold_price"]} 已记入今日大盘。'})
     return jsonify({'success': False, 'msg': f'❌ 未能在店内库存中找到条码为 [{code}] 的货品。'})
 
-# 💡 升级核心：新增退货接口逻辑
 @app.route('/api/return_item', methods=['POST'])
+@requires_auth
 def return_item():
     req = request.get_json() or {}
     code = str(req.get('code', '')).strip()
@@ -581,7 +596,6 @@ def return_item():
             if item['status'] == '在售':
                 return jsonify({'success': False, 'msg': f'⚠️ 提示：该货品 [ {code} ] 当前本来就在在售库存中，无需退货。'})
             
-            # 还原状态，抹除历史售价与售出日期
             old_price = item.get('sold_price', '0')
             item['status'] = '在售'
             if 'sold_date' in item: del item['sold_date']
