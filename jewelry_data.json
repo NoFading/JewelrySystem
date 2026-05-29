@@ -28,13 +28,17 @@
         "name": "足金吊坠",
         "category": "吊坠",
         "weight": "1.6",
-        "status": "在售"
+        "status": "在售",
+        "price": "1600.0",
+        "fee": "0.0"
     },
     {
         "code": "wyy02",
         "name": "珍珠项链",
         "category": "项链",
         "weight": "0",
-        "status": "在售"
+        "status": "在售",
+        "price": "600.0",
+        "fee": "0"
     }
 ]
