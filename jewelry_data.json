@@ -28,9 +28,11 @@
         "name": "足金吊坠",
         "category": "吊坠",
         "weight": "1.6",
-        "status": "在售",
+        "status": "已售出",
         "price": "1600.0",
-        "fee": "0.0"
+        "fee": "0.0",
+        "sold_date": "2026-05-29",
+        "sold_price": "1000"
     },
     {
         "code": "wyy02",
