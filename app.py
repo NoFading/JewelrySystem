@@ -657,6 +657,7 @@ def confirm_save():
             
     added_count = 0
     updated_count = 0
+    skipped_sold_count = 0  # 记录因为已经售出而被保护、跳过的条码数量
     
     # 2. 开始遍历 Excel 提交的数据
     for item in new_items:
@@ -665,13 +666,18 @@ def confirm_save():
         # 🔄 情况一：如果条码已存在（无论是数据库原本有的，还是本批前面刚刚新增的）
         if code_str in user_item_map:
             idx = user_item_map[code_str]
+            
+            # 🚨 【财务安全检查】：如果该货品在系统里的状态是“已售出”，绝对不覆盖，直接跳过保护历史账本
+            if current_data[idx].get('status') == '已售出':
+                skipped_sold_count += 1
+                continue
+                
+            # 只有在售状态，才允许更新它的各项基础属性
             current_data[idx]['name'] = item['name']
             current_data[idx]['category'] = item['category']
             current_data[idx]['weight'] = item['weight']
             current_data[idx]['price'] = item['price']
             current_data[idx]['fee'] = item['fee']
-            # 注意：如果是之前已经“已售出”的老货，重新入库时我们将其强制重置回“在售”
-            current_data[idx]['status'] = '在售'
             updated_count += 1
         else:
             # ➕ 情况二：如果是绝对意义上的新条码
@@ -681,18 +687,22 @@ def confirm_save():
                 "status": "在售", "owner": current_user
             })
             
-            # 🔥 【核心修复】将刚刚 append 进去的新成员位置，动态登记到映射表中
-            # 它的索引位置恰好就是当前 current_data 的最后一个元素的下标（即长度减 1）
+            # 将刚刚 append 进去的新成员位置，动态登记到映射表中
             user_item_map[code_str] = len(current_data) - 1
             added_count += 1
 
     # 3. 存盘并推送到 GitHub 备份
-    commit_msg = f"🔄 批量入库同步：新增 {added_count} 件，覆盖更新 {updated_count} 件 (账户: {current_user})"
+    commit_msg = f"🔄 批量入库同步：新增 {added_count} 件，更新 {updated_count} 件，跳过已售货品 {skipped_sold_count} 件 (账户: {current_user})"
     save_data(current_data, commit_msg=commit_msg)
     
+    # 拼装贴心的提示信息
+    msg_details = f'🎉 入库处理完毕！\n➕ 成功上架新品：{added_count} 件\n🔄 覆盖更新旧货：{updated_count} 件'
+    if skipped_sold_count > 0:
+        msg_details += f'\n⚠️ 自动跳过已售出历史条码：{skipped_sold_count} 件（已锁定保护）'
+        
     return jsonify({
         'success': True, 
-        'msg': f'🎉 入库处理完毕！\n➕ 成功上架新品：{added_count} 件\n🔄 覆盖/去重更新：{updated_count} 件'
+        'msg': msg_details
     })
 
 @app.route('/api/checkout', methods=['POST'])
