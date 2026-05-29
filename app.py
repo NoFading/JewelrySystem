@@ -11,16 +11,26 @@ app = Flask(__name__)
 DATA_FILE = 'jewelry_data.json'
 STOCKTAKE_FILE = 'stocktake_records.json'
 
-# ================= 🔐 安全登录配置区 =================
-USER_ACCOUNT = "fenggao"
-USER_PASSWORD = "123456" 
+# ================= 🔐 多账号密码配置区 =================
+# 在这里你可以无限增加新账号，每个账号的数据都是独立隔离的
+ACCOUNTS = {
+    "fenggao": "123456",  # 您的正式主账号
+    "test": "123456"      # 专门给他人或自己测试的账号
+}
 # ===================================================================
 
 GH_TOKEN = os.environ.get('GH_TOKEN')
 GH_REPO = os.environ.get('GH_REPO')
 
 def check_auth(username, password):
-    return username == USER_ACCOUNT and password == USER_PASSWORD
+    return username in ACCOUNTS and ACCOUNTS[username] == password
+
+def get_current_user():
+    """获取当前登录的基本认证用户名"""
+    auth = request.authorization
+    if auth and auth.username in ACCOUNTS:
+        return auth.username
+    return "guest"
 
 def requires_auth(f):
     @wraps(f)
@@ -79,13 +89,14 @@ def get_bj_today():
     bj_time = datetime.utcnow() + timedelta(hours=8)
     return bj_time.strftime('%Y-%m-%d %H:%M:%S')
 
+# 此处保持 7.5 版本流畅的前端 HTML 模板，仅更新了标题
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>峰高珠宝管理系统 7.5 全能搜索版</title>
+    <title>峰高珠宝管理系统 7.6 账号隔离独立版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; }
@@ -126,7 +137,6 @@ HTML_TEMPLATE = """
 
         input[type="file"], input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin: 4px 0 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
         
-        /* 智能搜索框高亮样式 */
         .search-box { background: #fff; border: 2px solid #ff3b30 !important; margin-bottom: 8px !important; font-weight: bold; }
         .search-box.green-border { border-color: #34c759 !important; }
         .search-box.orange-border { border-color: #ff9500 !important; }
@@ -347,7 +357,6 @@ HTML_TEMPLATE = """
         let stCurrentPage = 1;
         let stPageSize = 8; 
 
-        // 为三个数据流初始化分页配置（默认加载5行，清爽无感）
         let pagerConfig = {
             inventory: { currentPage: 1, pageSize: 5 },
             sold: { currentPage: 1, pageSize: 5 },
@@ -410,7 +419,6 @@ HTML_TEMPLATE = """
                 });
         }
 
-        // 💡 核心升级功能：全自动化本地虚拟多条件极速搜索筛选与分页
         function renderPagedTable(key) {
             const config = pagerConfig[key];
             let rawData = []; let tbody = null; let pagerDiv = null; let searchId = "";
@@ -421,7 +429,6 @@ HTML_TEMPLATE = """
 
             tbody.innerHTML = '';
 
-            // 获取相应的查找关键词进行多属性动态模糊过滤
             let filteredData = rawData;
             if(searchId) {
                 const query = document.getElementById(searchId).value.trim().toLowerCase();
@@ -737,11 +744,18 @@ def index(): return render_template_string(HTML_TEMPLATE)
 @app.route('/api/inventory', methods=['GET'])
 @requires_auth
 def get_inventory():
+    current_user = get_current_user()
     all_data = load_data()
     today_str = get_bj_today().split(' ')[0]
     active_list, sold_list, today_sales_list = [], [], []
     today_money = 0.0
+    
     for item in all_data:
+        # 💡 数据多路复用核心：只获取当前登录者的数据，如果没有 owner 字段，默认归宿为主账号
+        item_owner = item.get('owner', 'fenggao')
+        if item_owner != current_user:
+            continue
+            
         status = item.get('status', '在售')
         if status == '已售出':
             sold_list.append(item)
@@ -750,6 +764,7 @@ def get_inventory():
                 try: today_money += float(item.get('sold_price', 0) or 0)
                 except: pass
         else: active_list.append(item)
+        
     return jsonify({
         'active': active_list, 'sold': sold_list,
         'today_count': len(today_sales_list), 'today_money': today_money, 'today_list': today_sales_list
@@ -791,69 +806,79 @@ def parse_preview():
 @app.route('/api/confirm_save', methods=['POST'])
 @requires_auth
 def confirm_save():
+    current_user = get_current_user()
     req = request.get_json() or {}
     new_items = req.get('data', [])
     current_data = load_data()
-    existing_codes = {str(item['code']) for item in current_data}
+    
+    # 查重时只与该用户现有的条码碰撞
+    existing_codes = {str(item['code']) for item in current_data if item.get('owner', 'fenggao') == current_user}
     added_count = 0
     for item in new_items:
         if item['code'] not in existing_codes:
             current_data.append({
                 "code": item['code'], "name": item['name'], "category": item.get('category', '其他'),
-                "weight": item['weight'], "status": "在售"
+                "weight": item['weight'], "status": "在售",
+                "owner": current_user  # 💡 新增打上所有人标记
             })
             existing_codes.add(item['code'])
             added_count += 1
-    save_data(current_data, commit_msg=f"🎉 成功入库 {added_count} 件新品")
-    return jsonify({'success': True, 'msg': f'🎉 成功入库 {added_count} 件新品！'})
+    save_data(current_data, commit_msg=f"🎉 成功入库账户({current_user})新品 {added_count} 件")
+    return jsonify({'success': True, 'msg': f'🎉 成功入库新品 {added_count} 件！'})
 
 @app.route('/api/checkout', methods=['POST'])
 @requires_auth
 def checkout():
+    current_user = get_current_user()
     req = request.get_json() or {}
     code = str(req.get('code', '')).strip()
     sold_price = str(req.get('sold_price', '')).strip()
     current_data = load_data()
     today_str = get_bj_today().split(' ')[0]
     for item in current_data:
-        if str(item['code']).strip() == code:
+        # 💡 核销结账必须确保是本人的货物
+        if str(item['code']).strip() == code and item.get('owner', 'fenggao') == current_user:
             if item['status'] == '已售出': return jsonify({'success': False, 'msg': '⚠️ 该货品已售出'})
             item['status'] = '已售出'
             item['sold_date'] = today_str
             item['sold_price'] = sold_price
-            save_data(current_data, commit_msg=f"🛍 货品 {code} 售出记账")
+            save_data(current_data, commit_msg=f"🛍 账户({current_user})货品 {code} 售出记账")
             return jsonify({'success': True, 'msg': '🛍 销售成功！'})
-    return jsonify({'success': False, 'msg': '❌ 未找到该货品'})
+    return jsonify({'success': False, 'msg': '❌ 未找到属于您的此货品'})
 
 @app.route('/api/return_item', methods=['POST'])
 @requires_auth
 def return_item():
+    current_user = get_current_user()
     req = request.get_json() or {}
     code = str(req.get('code', '')).strip()
     current_data = load_data()
     for item in current_data:
-        if str(item['code']).strip() == code:
+        if str(item['code']).strip() == code and item.get('owner', 'fenggao') == current_user:
             if item['status'] == '在售': return jsonify({'success': False, 'msg': '⚠️ 该货品当前在售'})
             item['status'] = '在售'
             if 'sold_date' in item: del item['sold_date']
             if 'sold_price' in item: del item['sold_price']
-            save_data(current_data, commit_msg=f"🔄 货品 {code} 退货核销恢复库存")
+            save_data(current_data, commit_msg=f"🔄 账户({current_user})货品 {code} 退货核销恢复库存")
             return jsonify({'success': True, 'msg': '🔄 退货核销成功！'})
     return jsonify({'success': False, 'msg': '❌ 未找到记录'})
 
 @app.route('/api/stocktake/submit', methods=['POST'])
 @requires_auth
 def stocktake_submit():
+    current_user = get_current_user()
     report = request.get_json() or {}
     report['timestamp'] = get_bj_today()
+    report['owner'] = current_user  # 💡 盘点报告同样加上隔离标记
     history = load_stocktake_records()
     history.append(report)
-    save_data(history, filename=STOCKTAKE_FILE, commit_msg=f"📋 上传新盘点报告 - 盘亏 {report['total_missing']} 件")
+    save_data(history, filename=STOCKTAKE_FILE, commit_msg=f"📋 账户({current_user})上传盘点报告")
     return jsonify({'success': True, 'msg': '🏁 盘点报告已成功上传！'})
 
 @app.route('/api/stocktake/history', methods=['GET'])
 @requires_auth
 def stocktake_history():
+    current_user = get_current_user()
     if GH_TOKEN and GH_REPO and not os.path.exists(STOCKTAKE_FILE):
         try:
             url = f"https://api.github.com/repos/{GH_REPO}/contents/{STOCKTAKE_FILE}"
@@ -865,7 +890,11 @@ def stocktake_history():
                 content = base64.b64decode(res_data['content']).decode('utf-8')
                 with open(STOCKTAKE_FILE, 'w', encoding='utf-8') as f: f.write(content)
         except: pass
-    return jsonify(load_stocktake_records())
+    
+    all_history = load_stocktake_records()
+    # 💡 过滤，只返回属于当前登录账号的盘点记录
+    user_history = [h for h in all_history if h.get('owner', 'fenggao') == current_user]
+    return jsonify(user_history)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
