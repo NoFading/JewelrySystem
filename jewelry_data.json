@@ -6,9 +6,11 @@
         "weight": "25.56",
         "tag_price": "",
         "wage": "100.0",
-        "status": "已售出",
+        "status": "在售",
         "sold_date": "2026-05-29",
-        "sold_price": "28000"
+        "sold_price": "28000",
+        "price": "0",
+        "fee": "100.0"
     },
     {
         "code": "wyy04",
@@ -17,7 +19,9 @@
         "weight": "20.36",
         "tag_price": "1000.0",
         "wage": "",
-        "status": "在售"
+        "status": "在售",
+        "price": "1000.0",
+        "fee": "0"
     },
     {
         "code": "wyy01",
