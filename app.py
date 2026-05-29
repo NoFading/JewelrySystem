@@ -12,7 +12,6 @@ DATA_FILE = 'jewelry_data.json'
 STOCKTAKE_FILE = 'stocktake_records.json'
 
 # ================= 🔐 多账号密码配置区 =================
-# 在这里你可以无限增加新账号，每个账号的数据都是独立隔离的
 ACCOUNTS = {
     "fenggao": "123456",  # 您的正式主账号
     "test": "123456"      # 专门给他人或自己测试的账号
@@ -26,7 +25,6 @@ def check_auth(username, password):
     return username in ACCOUNTS and ACCOUNTS[username] == password
 
 def get_current_user():
-    """获取当前登录的基本认证用户名"""
     auth = request.authorization
     if auth and auth.username in ACCOUNTS:
         return auth.username
@@ -89,14 +87,14 @@ def get_bj_today():
     bj_time = datetime.utcnow() + timedelta(hours=8)
     return bj_time.strftime('%Y-%m-%d %H:%M:%S')
 
-# 此处保持 7.5 版本流畅的前端 HTML 模板，仅更新了标题
+# 🎨 独立优化 7.6 版本的 HTML 看板页面
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>峰高珠宝管理系统 7.6 账号隔离独立版</title>
+    <title>峰高珠宝管理系统 7.6 核心必填版</title>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; margin: 0; padding: 10px; color: #333; }
@@ -148,7 +146,6 @@ HTML_TEMPLATE = """
         th { background: #f9f9f9; font-weight: 600; color: #666; }
         
         .type-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-        
         .pagination-container { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 4px; font-size: 12px; color: #555; }
         .page-btn { background: #eef0f3; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 4px; }
         .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -156,7 +153,6 @@ HTML_TEMPLATE = """
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; }
         .modal-content { background: white; border-radius: 14px; width: 100%; max-width: 500px; padding: 15px; box-sizing: border-box; box-shadow: 0 4px 15px rgba(0,0,0,0.15); animation: fadeIn 0.2s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         
         .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; }
         .badge-red { background: #ff3b30; }
@@ -181,7 +177,7 @@ HTML_TEMPLATE = """
             <table>
                 <thead>
                     <tr style="background: #fff5f5;">
-                        <th>条码/标签</th><th>货品名称</th><th>品类</th><th>金重(g)</th><th>实际成交售价</th>
+                        <th>条码</th><th>货品名称</th><th>品类</th><th>金重(g)</th><th>标签价</th><th>工费/克</th><th>实际售价</th>
                     </tr>
                 </thead>
                 <tbody id="todaySalesBody"></tbody>
@@ -219,44 +215,47 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="tab-content" id="contentOp2">
+            <div style="background: #fff1f0; border: 1px solid #ffa39e; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: #a8071a; line-height: 1.5;">
+                <b style="font-size: 14px; color: #cf1322;">⚠️ 批量导入 Excel 严格规范说明：</b><br>
+                <span style="display:inline-block; margin-top: 4px;">表格第一行<b>必须完整包含以下 6 核心列</b>（顺序不限，缺一不可）：</span><br>
+                <div style="margin: 6px 0; display: flex; flex-wrap: wrap; gap: 4px;">
+                    <span style="background:#fff; padding:2px 6px; border:1px solid #ffa39e; border-radius:4px; font-weight:bold;">条码</span>
+                    <span style="background:#fff; padding:2px 6px; border:1px solid #ffa39e; border-radius:4px; font-weight:bold;">货品名称</span>
+                    <span style="background:#fff; padding:2px 6px; border:1px solid #ffa39e; border-radius:4px; font-weight:bold;">品类</span>
+                    <span style="background:#fff; padding:2px 6px; border:1px solid #ffa39e; border-radius:4px; font-weight:bold;">金重</span>
+                    <span style="background:#fff; padding:2px 6px; border:1px solid #ffa39e; border-radius:4px; font-weight:bold;">标价</span>
+                    <span style="background:#fff; padding:2px 6px; border:1px solid #ffa39e; border-radius:4px; font-weight:bold;">工费</span>
+                </div>
+                <span style="color: #666; font-size:12px;">💡 提示：系统会自动根据这 6 个词自动对应列，请确保标题文字准确无误。</span>
+            </div>
+
             <input type="file" id="excelFile" accept=".xlsx, .xls">
             <button class="btn btn-green" onclick="uploadExcel()">选择并解析新货 Excel</button>
         </div>
 
         <div class="tab-content" id="contentOp3">
-            <div id="stocktakeSetup">
-                <button class="btn btn-purple" onclick="startLocalStocktake()">🟢 开启手机离线盘点</button>
-            </div>
-
+            <div id="stocktakeSetup"><button class="btn btn-purple" onclick="startLocalStocktake()">🟢 开启手机离线盘点</button></div>
             <div id="stocktakeActiveZone" style="display:none;">
                 <div style="background:#f5f0ff; padding:10px; border-radius:8px; margin-bottom:10px; font-size:13px;">
                     <div>📊 盘点进度：<b id="stProgressText" style="color:#5856d6; font-size:16px;">0 / 0</b></div>
                 </div>
-
                 <button class="btn btn-scan" id="stocktakeScanBtn" onclick="toggleScanner('stocktake')">📷 开启盘点专用扫码</button>
                 <div id="stocktakeReader"></div>
-
-                <input type="text" id="stocktakeBarcodeInput" placeholder="若摄像头不方便，可在此手输条码" onkeydown="if(event.keyCode==13)manualStocktakeCheck()">
-
-                <h2 style="border-left-color: #5856d6; color:#5856d6; margin-top:15px; margin-bottom: 5px;">🔍 寻找待盘货品</h2>
-                <input type="text" id="stocktakeSearchInput" class="search-box purple-border" placeholder="⚡ 输入品类、货名或条码实时过滤..." oninput="stCurrentPage=1; renderStocktakeMissingList();">
-
+                <input type="text" id="stocktakeBarcodeInput" placeholder="可在此手输条码" onkeydown="if(event.keyCode==13)manualStocktakeCheck()">
+                
+                <input type="text" id="stocktakeSearchInput" class="search-box purple-border" placeholder="⚡ 实时过滤..." oninput="stCurrentPage=1; renderStocktakeMissingList();">
                 <div id="stocktakeListWrapper">
                     <div class="table-container" style="background: #fff;">
                         <table>
-                            <thead>
-                                <tr style="background:#f5f0ff;"><th>条码</th><th>货品名称</th><th>品类</th><th>金重</th></tr>
-                            </thead>
+                            <thead><tr style="background:#f5f0ff;"><th>条码</th><th>货品名称</th><th>品类</th><th>金重</th></tr></thead>
                             <tbody id="stocktakeMissingBody"></tbody>
                         </table>
                     </div>
-                    <div class="pagination-container" id="stocktakeLocalPager" style="padding: 4px 0;"></div>
+                    <div class="pagination-container" id="stocktakeLocalPager"></div>
                 </div>
-                
-                <div id="toggleShowAllBtn" class="toggle-all-btn" onclick="toggleStocktakeCollapse()">💡 当前默认只显示前 5 条 | 点击展开完整大名单与分页</div>
-
+                <div id="toggleShowAllBtn" class="toggle-all-btn" onclick="toggleStocktakeCollapse()">展开完整名单</div>
                 <div style="display:flex; gap:10px; margin-top:20px;">
-                    <button class="btn btn-green" style="flex:1;" onclick="finishStocktakeSubmit()">🏁 结束盘点并保存记录</button>
+                    <button class="btn btn-green" style="flex:1;" onclick="finishStocktakeSubmit()">🏁 结束盘点并保存</button>
                     <button class="btn" style="background:#666; width:80px;" onclick="cancelStocktakeReset()">放弃</button>
                 </div>
             </div>
@@ -265,10 +264,10 @@ HTML_TEMPLATE = """
 
     <div class="preview-zone" id="previewZone">
         <h2 style="border-left-color: #ff9500; font-size:13px;">⚠️ 待入库新货安全预览</h2>
-        <div class="table-container" style="max-height: 150px; background: white;">
+        <div class="table-container" style="max-height: 180px; background: white;">
             <table>
                 <thead>
-                    <tr><th>条码</th><th>货品名称</th><th>品类</th><th>金重</th></tr>
+                    <tr><th>条码</th><th>货品名称</th><th>品类</th><th>金重</th><th>标签标价</th><th>工费</th></tr>
                 </thead>
                 <tbody id="previewBody"></tbody>
             </table>
@@ -287,11 +286,11 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="tab-content active" id="contentView1">
-            <input type="text" id="inventorySearchInput" class="search-box green-border" placeholder="⚡ 极速找存货：输入条码、货名或品类实时筛选..." oninput="pagerConfig.inventory.currentPage=1; renderPagedTable('inventory');">
+            <input type="text" id="inventorySearchInput" class="search-box green-border" placeholder="⚡ 输入条码、货名或品类实时筛选..." oninput="pagerConfig.inventory.currentPage=1; renderPagedTable('inventory');">
             <div class="table-container">
                 <table>
                     <thead>
-                        <tr><th>条码/标签</th><th>货品名称</th><th>品类</th><th>金重(g)</th><th>状态</th></tr>
+                        <tr><th>条码</th><th>货品名称</th><th>品类</th><th>金重(g)</th><th>标签标价</th><th>工费</th><th>状态</th></tr>
                     </thead>
                     <tbody id="inventoryBody"></tbody>
                 </table>
@@ -300,12 +299,12 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="tab-content" id="contentView2">
-            <input type="text" id="soldSearchInput" class="search-box orange-border" placeholder="⚡ 闪电查老账：输入条码、货名、日期或品类筛选..." oninput="pagerConfig.sold.currentPage=1; renderPagedTable('sold');">
+            <input type="text" id="soldSearchInput" class="search-box orange-border" placeholder="⚡ 闪电查老账..." oninput="pagerConfig.sold.currentPage=1; renderPagedTable('sold');">
             <div class="table-container">
                 <table>
                     <thead>
                         <tr style="background: #fdf2f2;">
-                            <th>条码/标签</th><th>货品名称</th><th>品类</th><th>金重(g)</th><th style="color: #ff3b30;">成交售价</th><th>售出日期</th>
+                            <th>条码</th><th>货品名称</th><th>品类</th><th>金重</th><th>标签标价</th><th>工费</th><th style="color:#ff3b30;">实际售价</th><th>售出日期</th>
                         </tr>
                     </thead>
                     <tbody id="soldBody"></tbody>
@@ -318,9 +317,7 @@ HTML_TEMPLATE = """
             <div class="table-container">
                 <table>
                     <thead>
-                        <tr style="background: #f0f7ff;">
-                            <th>盘点时间</th><th>账面应有</th><th>实盘抓到</th><th>盘亏(丢失)</th><th>亏损详细</th>
-                        </tr>
+                        <tr style="background: #f0f7ff;"><th>盘点时间</th><th>账面应有</th><th>实盘抓到</th><th>盘亏件数</th><th>明细</th></tr>
                     </thead>
                     <tbody id="stocktakeHistoryBody"></tbody>
                 </table>
@@ -330,48 +327,27 @@ HTML_TEMPLATE = """
 
     <div class="modal-overlay" id="detailModal">
         <div class="modal-content">
-            <h2 style="border-left-color: #ff3b30; font-size:15px; margin-bottom:12px;">❌ 盘亏缺失货品详细名单</h2>
-            <div class="table-container" style="max-height: 280px;">
-                <table style="width:100%;">
-                    <thead>
-                        <tr style="background:#fff0f0;"><th>条码/货号</th><th>货品名称</th><th>品类</th><th>金重</th></tr>
-                    </thead>
-                    <tbody id="modalTableBody"></tbody>
-                </table>
-            </div>
-            <button class="btn btn-blue" style="margin-top:15px;" onclick="closeModal()">我知道了，关闭窗口</button>
+            <h2 style="border-left-color: #ff3b30;">❌ 盘亏缺失货品详细名单</h2>
+            <div class="table-container" style="max-height: 280px;"><table style="width:100%;"><tbody id="modalTableBody"></tbody></table></div>
+            <button class="btn btn-blue" style="margin-top:15px;" onclick="closeModal()">关闭窗口</button>
         </div>
     </div>
 
     <script>
-        let html5QrcodeScanner = null;
-        let tempParsedData = null;
-        let currentMode = 'sale';
-        
-        let backendActiveData = [];
-        let backendSoldData = [];
-        let backendTodayData = [];
-        
-        let localStocktakeItems = [];
-        let isStCollapsed = true; 
-        let stCurrentPage = 1;
-        let stPageSize = 8; 
-
-        let pagerConfig = {
-            inventory: { currentPage: 1, pageSize: 5 },
-            sold: { currentPage: 1, pageSize: 5 },
-            today: { currentPage: 1, pageSize: 10 }
-        };
+        let html5QrcodeScanner = null; let tempParsedData = null; let currentMode = 'sale';
+        let backendActiveData = []; let backendSoldData = []; let backendTodayData = [];
+        let localStocktakeItems = []; let isStCollapsed = true; let stCurrentPage = 1; let stPageSize = 8;
+        let pagerConfig = { inventory: { currentPage: 1, pageSize: 5 }, sold: { currentPage: 1, pageSize: 5 }, today: { currentPage: 1, pageSize: 10 } };
 
         window.onload = loadAllData;
 
         function getTypeTagHtml(typeStr) {
             const val = String(typeStr || '').trim();
             let bg = '#eef0f3', color = '#495057';
-            if (val.includes('戒指') || val.includes('耳饰') || val.includes('耳')) { bg = '#fff0f6'; color = '#c41d7f'; }
-            else if (val.includes('项链') || val.includes('手链') || val.includes('套链') || val.includes('链')) { bg = '#e6f7ff'; color = '#096dd9'; }
-            else if (val.includes('手镯')) { bg = '#f6ffed'; color = '#389e0d'; }
-            else if (val.includes('挂坠') || val.includes('吊坠') || val.includes('坠')) { bg = '#f9f0ff'; color = '#531dab'; }
+            if (val.includes('戒指') || val.includes('耳')) { bg = '#fff0f6'; color = '#c41d7f'; }
+            else if (val.includes('链')) { bg = '#e6f7ff'; color = '#096dd9'; }
+            else if (val.includes('镯')) { bg = '#f6ffed'; color = '#389e0d'; }
+            else if (val.includes('坠')) { bg = '#f9f0ff'; color = '#531dab'; }
             return `<span class="type-tag" style="background: ${bg}; color: ${color};">${val}</span>`;
         }
 
@@ -384,17 +360,12 @@ HTML_TEMPLATE = """
             if(moduleName === 'View' && index === 3) { loadStocktakeHistory(); }
         }
 
-        function toggleSection(id) {
-            const el = document.getElementById(id);
-            el.style.display = (el.style.display === 'none') ? 'block' : 'none';
-        }
+        function toggleSection(id) { const el = document.getElementById(id); el.style.display = (el.style.display === 'none') ? 'block' : 'none'; }
 
         function setMode(mode) {
             currentMode = mode;
-            const modeSale = document.getElementById('modeSale');
-            const modeReturn = document.getElementById('modeReturn');
-            const priceInputArea = document.getElementById('priceInputArea');
-            const submitOpBtn = document.getElementById('submitOpBtn');
+            const modeSale = document.getElementById('modeSale'); const modeReturn = document.getElementById('modeReturn');
+            const priceInputArea = document.getElementById('priceInputArea'); const submitOpBtn = document.getElementById('submitOpBtn');
             if (mode === 'sale') {
                 modeSale.classList.add('selected-sale'); modeReturn.classList.remove('selected-return');
                 priceInputArea.style.display = 'block'; submitOpBtn.innerText = '💰 确认销售并记账'; submitOpBtn.className = 'btn';
@@ -408,14 +379,10 @@ HTML_TEMPLATE = """
             fetch('/api/inventory')
                 .then(res => res.json())
                 .then(res => {
-                    backendActiveData = res.active || [];
-                    backendSoldData = res.sold || [];
-                    backendTodayData = res.today_list || [];
+                    backendActiveData = res.active || []; backendSoldData = res.sold || []; backendTodayData = res.today_list || [];
                     document.getElementById('todayAmount').innerText = '¥ ' + res.today_money.toFixed(2);
                     document.getElementById('todayCount').innerText = '今天已成功卖出: ' + res.today_count + ' 件货品';
-                    renderPagedTable('inventory');
-                    renderPagedTable('sold');
-                    renderPagedTable('today');
+                    renderPagedTable('inventory'); renderPagedTable('sold'); renderPagedTable('today');
                 });
         }
 
@@ -428,28 +395,23 @@ HTML_TEMPLATE = """
             else if (key === 'today') { rawData = backendTodayData; tbody = document.getElementById('todaySalesBody'); pagerDiv = document.getElementById('pagerToday'); }
 
             tbody.innerHTML = '';
-
             let filteredData = rawData;
             if(searchId) {
                 const query = document.getElementById(searchId).value.trim().toLowerCase();
                 if(query) {
                     filteredData = rawData.filter(item => 
-                        String(item.code).toLowerCase().includes(query) || 
-                        String(item.name).toLowerCase().includes(query) || 
-                        String(item.category).toLowerCase().includes(query) ||
-                        (item.sold_date && String(item.sold_date).toLowerCase().includes(query))
+                        String(item.code).toLowerCase().includes(query) || String(item.name).toLowerCase().includes(query) || String(item.category).toLowerCase().includes(query)
                     );
                 }
             }
 
             if(filteredData.length === 0) {
-                const cols = key === 'sold' ? 6 : 5;
-                tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center; color:#999; padding:15px;">🔍 未找到相关匹配的货品记录</td></tr>`;
+                const cols = key === 'sold' ? 8 : (key === 'inventory' ? 7 : 7);
+                tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center; color:#999; padding:15px;">🔍 未找到相关匹配记录</td></tr>`;
                 pagerDiv.innerHTML = ''; return;
             }
 
-            let totalItems = filteredData.length;
-            let totalPages = Math.ceil(totalItems / config.pageSize);
+            let totalItems = filteredData.length; let totalPages = Math.ceil(totalItems / config.pageSize);
             if (config.currentPage > totalPages) config.currentPage = totalPages;
             if (config.currentPage < 1) config.currentPage = 1;
 
@@ -459,25 +421,19 @@ HTML_TEMPLATE = """
 
             pageData.forEach(item => {
                 const tagHtml = getTypeTagHtml(item.category || '其他');
+                const price = item.price ? '¥' + item.price : '-';
+                const fee = item.fee ? '¥' + item.fee : '-';
                 if (key === 'inventory') {
-                    tbody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${tagHtml}</td><td>${item.weight}g</td><td style="color:#34c759;font-weight:bold;">在售</td></tr>`;
+                    tbody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${tagHtml}</td><td>${item.weight}g</td><td>${price}</td><td>${fee}</td><td style="color:#34c759;font-weight:bold;">在售</td></tr>`;
                 } else if (key === 'sold') {
-                    tbody.innerHTML += `<tr><td><del>${item.code}</del></td><td>${item.name}</td><td>${tagHtml}</td><td>${item.weight}g</td><td style="color:#ff3b30; font-weight:bold;">¥ ${item.sold_price}</td><td>${item.sold_date}</td></tr>`;
+                    tbody.innerHTML += `<tr><td><del>${item.code}</del></td><td>${item.name}</td><td>${tagHtml}</td><td>${item.weight}g</td><td>${price}</td><td>${fee}</td><td style="color:#ff3b30; font-weight:bold;">¥ ${item.sold_price}</td><td>${item.sold_date}</td></tr>`;
                 } else if (key === 'today') {
-                    tbody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${tagHtml}</td><td>${item.weight}g</td><td style="color:#ff3b30; font-weight:bold;">¥ ${item.sold_price}</td></tr>`;
+                    tbody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${tagHtml}</td><td>${item.weight}g</td><td>${price}</td><td>${fee}</td><td style="color:#ff3b30; font-weight:bold;">¥ ${item.sold_price}</td></tr>`;
                 }
             });
 
             pagerDiv.innerHTML = `
-                <div>
-                    共 ${totalItems} 条 | 每页:
-                    <select class="page-size-select" onchange="changePageSize('${key}', this.value)">
-                        <option value="5" ${config.pageSize==5?'selected':''}>5行</option>
-                        <option value="10" ${config.pageSize==10?'selected':''}>10行</option>
-                        <option value="20" ${config.pageSize==20?'selected':''}>20行</option>
-                        <option value="50" ${config.pageSize==50?'selected':''}>50行</option>
-                    </select>
-                </div>
+                <div>共 ${totalItems} 条</div>
                 <div>
                     <button class="page-btn" ${config.currentPage==1?'disabled':''} onclick="goToPage('${key}', ${config.currentPage - 1})">◀</button>
                     <span style="margin: 0 4px; font-weight:bold;">${config.currentPage}/${totalPages}</span>
@@ -487,204 +443,6 @@ HTML_TEMPLATE = """
         }
 
         function goToPage(key, page) { pagerConfig[key].currentPage = page; renderPagedTable(key); }
-        function changePageSize(key, size) { pagerConfig[key].pageSize = parseInt(size); pagerConfig[key].currentPage = 1; renderPagedTable(key); }
-
-        function startLocalStocktake() {
-            fetch('/api/inventory')
-                .then(res => res.json())
-                .then(res => {
-                    if(!res.active || res.active.length === 0) { alert("当前店内在售库存为空，无需盘点！"); return; }
-                    localStocktakeItems = res.active.map(item => { return { ...item, scanned: false }; });
-                    isStCollapsed = true; stCurrentPage = 1;
-                    document.getElementById('stocktakeSearchInput').value = '';
-                    document.getElementById('stocktakeSetup').style.display = 'none';
-                    document.getElementById('stocktakeActiveZone').style.display = 'block';
-                    renderStocktakeMissingList();
-                });
-        }
-
-        function toggleStocktakeCollapse() {
-            isStCollapsed = !isStCollapsed;
-            document.getElementById('toggleShowAllBtn').innerText = isStCollapsed ? 
-                "💡 当前默认只显示前 5 条 | 点击展开完整大名单与分页" : "✨ 当前已进入完整视图 | 点击切换回前 5 条精简视图";
-            renderStocktakeMissingList();
-        }
-
-        function renderStocktakeMissingList() {
-            const missingBody = document.getElementById('stocktakeMissingBody');
-            const pagerDiv = document.getElementById('stocktakeLocalPager');
-            missingBody.innerHTML = '';
-            
-            const totalMissingItems = localStocktakeItems.filter(item => !item.scanned);
-            const scannedCount = localStocktakeItems.filter(item => item.scanned).length;
-            document.getElementById('stProgressText').innerText = `${scannedCount} 已盘 / ${localStocktakeItems.length} 账面总数`;
-
-            if(totalMissingItems.length === 0) {
-                missingBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#34c759; font-weight:bold; padding:20px;">🎉 账面所有货品已盘齐！</td></tr>';
-                pagerDiv.innerHTML = ''; document.getElementById('toggleShowAllBtn').style.display = 'none'; return;
-            }
-
-            const query = document.getElementById('stocktakeSearchInput').value.trim().toLowerCase();
-            let filteredItems = totalMissingItems;
-            if(query) {
-                filteredItems = totalMissingItems.filter(item => 
-                    String(item.code).toLowerCase().includes(query) || 
-                    String(item.name).toLowerCase().includes(query) || 
-                    String(item.category).toLowerCase().includes(query)
-                );
-            }
-
-            if(filteredItems.length === 0) {
-                missingBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#999; padding:15px;">🔍 找不到符合筛选条件的待盘货品</td></tr>';
-                pagerDiv.innerHTML = ''; return;
-            }
-
-            document.getElementById('toggleShowAllBtn').style.display = 'block';
-
-            let displayItems = [];
-            if (isStCollapsed) {
-                displayItems = filteredItems.slice(0, 5);
-                pagerDiv.innerHTML = `<div style="color:#666; font-size:11px; text-align:center; width:100%;">⚡ 为了在手机上极速扫码，当前隐藏了其余 ${filteredItems.length - displayItems.length} 条待找项</div>`;
-            } else {
-                let totalItems = filteredItems.length;
-                let totalPages = Math.ceil(totalItems / stPageSize);
-                if (stCurrentPage > totalPages) stCurrentPage = totalPages;
-                if (stCurrentPage < 1) stCurrentPage = 1;
-                let start = (stCurrentPage - 1) * stPageSize;
-                let end = Math.min(start + stPageSize, totalItems);
-                displayItems = filteredItems.slice(start, end);
-                pagerDiv.innerHTML = `
-                    <div style="font-size:11px; color:#666;">筛选后共 ${totalItems} 条</div>
-                    <div>
-                        <button class="page-btn" ${stCurrentPage==1?'disabled':''} onclick="stCurrentPage--; renderStocktakeMissingList();">◀</button>
-                        <span style="margin:0 4px;">${stCurrentPage}/${totalPages}</span>
-                        <button class="page-btn" ${stCurrentPage==totalPages?'disabled':''} onclick="stCurrentPage++; renderStocktakeMissingList();">▶</button>
-                    </div>
-                `;
-            }
-            displayItems.forEach(item => {
-                missingBody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${getTypeTagHtml(item.category)}</td><td>${item.weight}g</td></tr>`;
-            });
-        }
-
-        function processStocktakeCode(code) {
-            const codeStr = String(code).trim();
-            let found = false;
-            for(let i=0; i<localStocktakeItems.length; i++) {
-                if(String(localStocktakeItems[i].code).trim() === codeStr) {
-                    if(localStocktakeItems[i].scanned) { alert(`条码 [${codeStr}] 刚才已经盘过了。`); } 
-                    else { localStocktakeItems[i].scanned = true; }
-                    found = true; break;
-                }
-            }
-            if(!found) { alert(`⚠️ 警告：条码 [${codeStr}] 不在系统在售存货账本中！`); }
-            renderStocktakeMissingList();
-        }
-
-        function manualStocktakeCheck() {
-            const inputEl = document.getElementById('stocktakeBarcodeInput');
-            if(inputEl.value.trim()) { processStocktakeCode(inputEl.value.trim()); inputEl.value = ''; }
-        }
-
-        function finishStocktakeSubmit() {
-            const missingItems = localStocktakeItems.filter(item => !item.scanned);
-            const scannedItems = localStocktakeItems.filter(item => item.scanned);
-            if(!confirm(`确认结束盘点吗？\n✅ 实盘：${scannedItems.length}件\n❌ 盘亏：${missingItems.length}件`)) return;
-
-            const report = {
-                total_expected: localStocktakeItems.length,
-                total_found: scannedItems.length,
-                total_missing: missingItems.length,
-                missing_details: missingItems.map(i => ({ code: i.code, name: i.name, category: i.category || '其他', weight: i.weight }))
-            };
-
-            fetch('/api/stocktake/submit', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report)
-            })
-            .then(res => res.json()).then(res => { alert(res.msg); cancelStocktakeReset(); loadAllData(); });
-        }
-
-        function cancelStocktakeReset() {
-            localStocktakeItems = []; stopScanner();
-            document.getElementById('stocktakeActiveZone').style.display = 'none';
-            document.getElementById('stocktakeSetup').style.display = 'block';
-        }
-
-        function loadStocktakeHistory() {
-            fetch('/api/stocktake/history')
-                .then(res => res.json())
-                .then(data => {
-                    const tbody = document.getElementById('stocktakeHistoryBody'); tbody.innerHTML = '';
-                    if(data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999; padding:12px;">暂无历史盘点报告</td></tr>'; return;
-                    }
-                    data.reverse().forEach((r, idx) => {
-                        const badgeClass = r.total_missing > 0 ? 'badge-red' : 'badge-green';
-                        let actionBtnHtml = '-';
-                        if(r.total_missing > 0) {
-                            actionBtnHtml = `<button class="page-btn" style="background:#2f54eb; color:white; font-size:11px; padding:3px 7px;" onclick="showMissingDetailPopup(${idx}, ${data.length})">🔍 查看明细</button>`;
-                        }
-                        tbody.innerHTML += `<tr>
-                            <td>${r.timestamp}</td>
-                            <td>${r.total_expected} 件</td>
-                            <td>${r.total_found} 件</td>
-                            <td><span class="badge ${badgeClass}">${r.total_missing} 件</span></td>
-                            <td>${actionBtnHtml}</td>
-                        </tr>`;
-                    });
-                });
-        }
-
-        function showMissingDetailPopup(reverseIdx, totalLength) {
-            fetch('/api/stocktake/history')
-                .then(res => res.json())
-                .then(data => {
-                    const realIdx = totalLength - 1 - reverseIdx; const report = data[realIdx];
-                    const mbody = document.getElementById('modalTableBody'); mbody.innerHTML = '';
-                    const details = report.missing_details || [];
-                    if(details.length === 0) {
-                        mbody.innerHTML = `<tr><td colspan="4" style="color:#999; text-align:center;">该报告未录入特征数据</td></tr>`;
-                    } else {
-                        details.forEach(item => {
-                            mbody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${getTypeTagHtml(item.category)}</td><td>${item.weight}g</td></tr>`;
-                        });
-                    }
-                    document.getElementById('detailModal').style.display = 'flex';
-                });
-        }
-
-        function closeModal() { document.getElementById('detailModal').style.display = 'none'; }
-
-        function toggleScanner(type) {
-            const isStocktake = (type === 'stocktake');
-            const readerId = isStocktake ? 'stocktakeReader' : 'reader';
-            const btnId = isStocktake ? 'stocktakeScanBtn' : 'scanBtn';
-            const readerDiv = document.getElementById(readerId);
-            const scanBtn = document.getElementById(btnId);
-            
-            if (readerDiv.style.display === 'block') { stopScanner(); } else {
-                readerDiv.style.display = 'block'; scanBtn.innerText = '🛑 关闭扫码器';
-                html5QrcodeScanner = new Html5Qrcode(readerId);
-                html5QrcodeScanner.start(
-                    { facingMode: "environment" }, { fps: 12, qrbox: { width: 220, height: 220 } },
-                    (decodedText) => {
-                        if(isStocktake) { processStocktakeCode(decodedText); } 
-                        else { document.getElementById('barcodeInput').value = decodedText; stopScanner(); }
-                    }, () => {}
-                ).catch(() => { alert("未检测到摄像头授权。"); stopScanner(); });
-            }
-        }
-
-        function stopScanner() {
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => {
-                    document.getElementById('reader').style.display = 'none';
-                    document.getElementById('stocktakeReader').style.display = 'none';
-                    document.getElementById('scanBtn').innerText = '📷 开启摄像头扫码';
-                    document.getElementById('stocktakeScanBtn').innerText = '📷 开启盘点专用扫码';
-                }).catch(() => {});
-            }
-        }
 
         function uploadExcel() {
             const fileInput = document.getElementById('excelFile');
@@ -697,10 +455,10 @@ HTML_TEMPLATE = """
                         tempParsedData = res.data;
                         const pbody = document.getElementById('previewBody'); pbody.innerHTML = '';
                         res.data.forEach(item => {
-                            pbody.innerHTML += `<tr><td>${item.code}</td><td>${item.name}</td><td>${item.category}</td><td>${item.weight}g</td></tr>`;
+                            pbody.innerHTML += `<tr><td>${item.code}</td><td>${item.name}</td><td>${item.category}</td><td>${item.weight}g</td><td>¥${item.price}</td><td>¥${item.fee}</td></tr>`;
                         });
                         document.getElementById('previewZone').style.display = 'block';
-                    } else { alert('解析失败：' + res.msg); }
+                    } else { alert('解析失败拦截：' + res.msg); }
                 });
         }
 
@@ -711,7 +469,6 @@ HTML_TEMPLATE = """
             })
             .then(res => res.json()).then(res => { alert(res.msg); cancelImport(); loadAllData(); });
         }
-
         function cancelImport() { tempParsedData = null; document.getElementById('previewZone').style.display = 'none'; document.getElementById('excelFile').value = ''; }
 
         function executeOperation() {
@@ -725,13 +482,72 @@ HTML_TEMPLATE = """
                 })
                 .then(res => res.json()).then(res => { alert(res.msg); if (res.success) { document.getElementById('barcodeInput').value = ''; document.getElementById('actualPriceInput').value = ''; loadAllData(); } });
             } else {
-                if (!confirm(`确认要为条码 [${code}] 办理退货核销吗？`)) return;
+                if (!confirm(`确认办理退货吗？`)) return;
                 fetch('/api/return_item', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code })
                 })
                 .then(res => res.json()).then(res => { alert(res.msg); if (res.success) { document.getElementById('barcodeInput').value = ''; loadAllData(); } });
             }
         }
+
+        function startLocalStocktake() {
+            fetch('/api/inventory').then(res => res.json()).then(res => {
+                if(!res.active || res.active.length === 0) { alert("当前存货为空！"); return; }
+                localStocktakeItems = res.active.map(item => { return { ...item, scanned: false }; });
+                isStCollapsed = true; stCurrentPage = 1;
+                document.getElementById('stocktakeActiveZone').style.display = 'block';
+                renderStocktakeMissingList();
+            });
+        }
+        function toggleStocktakeCollapse() { isStCollapsed = !isStCollapsed; renderStocktakeMissingList(); }
+        function renderStocktakeMissingList() {
+            const missingBody = document.getElementById('stocktakeMissingBody'); missingBody.innerHTML = '';
+            const totalMissingItems = localStocktakeItems.filter(item => !item.scanned);
+            document.getElementById('stProgressText').innerText = `${localStocktakeItems.filter(item => item.scanned).length} 已盘 / ${localStocktakeItems.length} 总数`;
+            if(totalMissingItems.length === 0) { missingBody.innerHTML = '<tr><td colspan="4">🎉 已全盘齐！</td></tr>'; return; }
+            totalMissingItems.slice(0, 5).forEach(item => {
+                missingBody.innerHTML += `<tr><td><b>${item.code}</b></td><td>${item.name}</td><td>${getTypeTagHtml(item.category)}</td><td>${item.weight}g</td></tr>`;
+            });
+        }
+        function processStocktakeCode(code) {
+            let found = false;
+            for(let i=0; i<localStocktakeItems.length; i++) {
+                if(String(localStocktakeItems[i].code).trim() === String(code).trim()) {
+                    localStocktakeItems[i].scanned = true; found = true; break;
+                }
+            }
+            if(!found) alert("不在存货清单中！");
+            renderStocktakeMissingList();
+        }
+        function manualStocktakeCheck() { const input = document.getElementById('stocktakeBarcodeInput'); if(input.value.trim()){ processStocktakeCode(input.value.trim()); input.value=''; } }
+        function finishStocktakeSubmit() {
+            const missing = localStocktakeItems.filter(item => !item.scanned);
+            const report = { total_expected: localStocktakeItems.length, total_found: localStocktakeItems.length - missing.length, total_missing: missing.length, missing_details: missing };
+            fetch('/api/stocktake/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report) })
+            .then(res => res.json()).then(res => { alert(res.msg); document.getElementById('stocktakeActiveZone').style.display='none'; loadAllData(); });
+        }
+        function cancelStocktakeReset() { document.getElementById('stocktakeActiveZone').style.display='none'; }
+        function loadStocktakeHistory() {
+            fetch('/api/stocktake/history').then(res => res.json()).then(data => {
+                const tbody = document.getElementById('stocktakeHistoryBody'); tbody.innerHTML = '';
+                data.reverse().forEach((r, idx) => {
+                    tbody.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.total_expected}</td><td>${r.total_found}</td><td>${r.total_missing}</td><td>-</td></tr>`;
+                });
+            });
+        }
+        function toggleScanner(type) {
+            const readerId = type === 'stocktake' ? 'stocktakeReader' : 'reader';
+            const div = document.getElementById(readerId);
+            if(div.style.display === 'block') { stopScanner(); } else {
+                div.style.display = 'block';
+                html5QrcodeScanner = new Html5Qrcode(readerId);
+                html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 12, qrbox: 220 }, (txt) => {
+                    if(type === 'stocktake') processStocktakeCode(txt); else { document.getElementById('barcodeInput').value = txt; stopScanner(); }
+                }, ()=>{});
+            }
+        }
+        function stopScanner() { if(html5QrcodeScanner) { html5QrcodeScanner.stop().then(()=>{ document.getElementById('reader').style.display='none'; document.getElementById('stocktakeReader').style.display='none'; }); } }
+        function closeModal() { document.getElementById('detailModal').style.display = 'none'; }
     </script>
 </body>
 </html>
@@ -751,7 +567,6 @@ def get_inventory():
     today_money = 0.0
     
     for item in all_data:
-        # 💡 数据多路复用核心：只获取当前登录者的数据，如果没有 owner 字段，默认归宿为主账号
         item_owner = item.get('owner', 'fenggao')
         if item_owner != current_user:
             continue
@@ -779,29 +594,52 @@ def parse_preview():
     try:
         df = pd.read_excel(file)
         df.columns = [str(c).strip() for c in df.columns]
-        code_col, name_col, cate_col, weight_col = None, None, None, None
+        
+        code_col, name_col, cate_col, weight_col, price_col, fee_col = None, None, None, None, None, None
+        
+        # 🔍 智能模糊匹配 6 个核心列名
         for col in df.columns:
             low_col = col.lower()
             if any(k in low_col for k in ['条码', '标签', '编码', '码', 'code']): code_col = col
             elif any(k in low_col for k in ['货品名称', '名称', '款式', 'name']): name_col = col
             elif any(k in low_col for k in ['品类', '类型', '分类', 'category']): cate_col = col
             elif any(k in low_col for k in ['克重', '金重', '重量', 'weight']): weight_col = col
-        if not code_col: return jsonify({'success': False, 'msg': '未找到条码列'})
+            elif any(k in low_col for k in ['标价', '标签价', '售价', 'price']): price_col = col
+            elif any(k in low_col for k in ['工费', '手艺费', '加工费', 'fee']): fee_col = col
+            
+        # 🚨 【强校验门禁】任何一列缺失，立马拦截拒绝导入
+        missing_cols = []
+        if not code_col: missing_cols.append("【条码】")
+        if not name_col: missing_cols.append("【货品名称】")
+        if not cate_col: missing_cols.append("【品类】")
+        if not weight_col: missing_cols.append("【金重】")
+        if not price_col: missing_cols.append("【标价】")
+        if not fee_col: missing_cols.append("【工费】")
+        
+        if missing_cols:
+            return jsonify({'success': False, 'msg': f"Excel 格式不合格！缺少必填列: {', '.join(missing_cols)}，请修改后重新上传。"})
+            
         preview_list = []
         for _, row in df.iterrows():
             raw_code = row[code_col]
             if pd.isna(raw_code): continue
             code_str = str(raw_code).strip().split('.')[0]
             if not code_str: continue
-            name_val = str(row[name_col]).strip() if (name_col and not pd.isna(row[name_col])) else "未命名货品"
-            cate_val = str(row[cate_col]).strip() if (cate_col and not pd.isna(row[cate_col])) else "其他"
-            weight_val = "0"
-            if weight_col and not pd.isna(row[weight_col]):
-                try: weight_val = str(round(float(row[weight_col]), 3))
-                except: weight_val = str(row[weight_col]).strip()
-            preview_list.append({"code": code_str, "name": name_val, "category": cate_val, "weight": weight_val})
+            
+            # 提取并确保数据格式完整
+            name_val = str(row[name_col]).strip() if not pd.isna(row[name_col]) else "未命名"
+            cate_val = str(row[cate_col]).strip() if not pd.isna(row[cate_col]) else "其他"
+            weight_val = str(round(float(row[weight_col]), 3)) if not pd.isna(row[weight_col]) else "0"
+            price_val = str(round(float(row[price_col]), 2)) if not pd.isna(row[price_col]) else "0"
+            fee_val = str(round(float(row[fee_col]), 2)) if not pd.isna(row[fee_col]) else "0"
+            
+            preview_list.append({
+                "code": code_str, "name": name_val, "category": cate_val, 
+                "weight": weight_val, "price": price_val, "fee": fee_val
+            })
         return jsonify({'success': True, 'data': preview_list})
-    except Exception as e: return jsonify({'success': False, 'msg': str(e)})
+    except Exception as e: 
+        return jsonify({'success': False, 'msg': f"解析出错，请检查内容格式。错误原因: {str(e)}"})
 
 @app.route('/api/confirm_save', methods=['POST'])
 @requires_auth
@@ -811,15 +649,14 @@ def confirm_save():
     new_items = req.get('data', [])
     current_data = load_data()
     
-    # 查重时只与该用户现有的条码碰撞
     existing_codes = {str(item['code']) for item in current_data if item.get('owner', 'fenggao') == current_user}
     added_count = 0
     for item in new_items:
         if item['code'] not in existing_codes:
             current_data.append({
-                "code": item['code'], "name": item['name'], "category": item.get('category', '其他'),
-                "weight": item['weight'], "status": "在售",
-                "owner": current_user  # 💡 新增打上所有人标记
+                "code": item['code'], "name": item['name'], "category": item['category'],
+                "weight": item['weight'], "price": item['price'], "fee": item['fee'],
+                "status": "在售", "owner": current_user
             })
             existing_codes.add(item['code'])
             added_count += 1
@@ -836,7 +673,6 @@ def checkout():
     current_data = load_data()
     today_str = get_bj_today().split(' ')[0]
     for item in current_data:
-        # 💡 核销结账必须确保是本人的货物
         if str(item['code']).strip() == code and item.get('owner', 'fenggao') == current_user:
             if item['status'] == '已售出': return jsonify({'success': False, 'msg': '⚠️ 该货品已售出'})
             item['status'] = '已售出'
@@ -859,7 +695,7 @@ def return_item():
             item['status'] = '在售'
             if 'sold_date' in item: del item['sold_date']
             if 'sold_price' in item: del item['sold_price']
-            save_data(current_data, commit_msg=f"🔄 账户({current_user})货品 {code} 退货核销恢复库存")
+            save_data(current_data, commit_msg=f"🔄 账户({current_user})货品 {code} 退货核销")
             return jsonify({'success': True, 'msg': '🔄 退货核销成功！'})
     return jsonify({'success': False, 'msg': '❌ 未找到记录'})
 
@@ -869,7 +705,7 @@ def stocktake_submit():
     current_user = get_current_user()
     report = request.get_json() or {}
     report['timestamp'] = get_bj_today()
-    report['owner'] = current_user  # 💡 盘点报告同样加上隔离标记
+    report['owner'] = current_user
     history = load_stocktake_records()
     history.append(report)
     save_data(history, filename=STOCKTAKE_FILE, commit_msg=f"📋 账户({current_user})上传盘点报告")
@@ -890,9 +726,7 @@ def stocktake_history():
                 content = base64.b64decode(res_data['content']).decode('utf-8')
                 with open(STOCKTAKE_FILE, 'w', encoding='utf-8') as f: f.write(content)
         except: pass
-    
     all_history = load_stocktake_records()
-    # 💡 过滤，只返回属于当前登录账号的盘点记录
     user_history = [h for h in all_history if h.get('owner', 'fenggao') == current_user]
     return jsonify(user_history)
 
